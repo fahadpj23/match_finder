@@ -2,6 +2,21 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+// Add this AppColors class at the top of the file
+class AppColors {
+  static const Color primaryBlue = Color(0xFF2563EB);
+  static const Color primaryDarkBlue = Color(0xFF1E40AF);
+  static const Color successGreen = Color(0xFF059669);
+  static const Color warningOrange = Color(0xFFD97706);
+  static const Color errorRed = Color(0xFFDC2626);
+  static const Color textPrimary = Color(0xFF111827);
+  static const Color textSecondary = Color(0xFF4B5563);
+  static const Color textTertiary = Color(0xFF9CA3AF);
+  static const Color backgroundLight = Color(0xFFF9FAFB);
+  static const Color surfaceWhite = Color(0xFFFFFFFF);
+  static const Color borderLight = Color(0xFFE5E7EB);
+}
+
 // Model Class
 class Display {
   final String id;
@@ -27,7 +42,7 @@ class Display {
   }
 }
 
-// Main Display Tab
+// Main Display Tab - IMPROVED DESIGN with App Bar Add Button
 class DisplayTab extends StatefulWidget {
   const DisplayTab({super.key});
 
@@ -39,13 +54,13 @@ class _DisplayTabState extends State<DisplayTab> {
   final TextEditingController _searchController = TextEditingController();
   final CollectionReference _displaysCollection = FirebaseFirestore.instance
       .collection('displays');
+  final ScrollController _scrollController = ScrollController();
 
   String _searchQuery = '';
   List<Display> _allDisplays = [];
 
   // Helper method to split text by multiple delimiters
   List<String> _splitByDelimiters(String text) {
-    // Split by '/', '=', ',' and trim each part
     return text
         .split(RegExp(r'[/=,]'))
         .map((part) => part.trim())
@@ -70,41 +85,27 @@ class _DisplayTabState extends State<DisplayTab> {
     String displayName, {
     String? excludeId,
   }) async {
-    // Get all display parts from the new input using multiple delimiters
     final newDisplayParts = _splitByDelimiters(displayName);
-
     final normalizedNewParts = newDisplayParts
         .map((part) => _normalizeText(part))
         .toList();
-
-    print('=== Checking for duplicates ===');
-    print('New display: "$displayName"');
-    print('Parts: $newDisplayParts');
-    print('Normalized parts: $normalizedNewParts');
 
     final snapshot = await _displaysCollection.get();
 
     for (var doc in snapshot.docs) {
       final existingDisplay = Display.fromFirestore(doc);
 
-      // Skip current document when editing
       if (excludeId != null && existingDisplay.id == excludeId) {
         continue;
       }
 
-      // Get existing display parts using multiple delimiters
       final existingDisplayParts = _splitByDelimiters(
         existingDisplay.displayName,
       );
-
       final normalizedExistingParts = existingDisplayParts
           .map((part) => _normalizeText(part))
           .toList();
 
-      print('Checking against: "${existingDisplay.displayName}"');
-      print('Existing parts: $existingDisplayParts');
-
-      // Check for exact matches in parts
       for (int i = 0; i < normalizedNewParts.length; i++) {
         final newPart = normalizedNewParts[i];
         final originalNewPart = newDisplayParts[i];
@@ -113,27 +114,18 @@ class _DisplayTabState extends State<DisplayTab> {
           final existingPart = normalizedExistingParts[j];
           final originalExistingPart = existingDisplayParts[j];
 
-          // Check if parts match exactly after normalization
           if (newPart == existingPart) {
-            print(
-              '✓ DUPLICATE FOUND: "$originalNewPart" matches "$originalExistingPart"',
-            );
             return true;
           }
         }
       }
 
-      // Check if any new part exists in existing parts (for single part addition)
       if (newDisplayParts.length == 1) {
         if (normalizedExistingParts.contains(normalizedNewParts[0])) {
-          print(
-            '✓ SINGLE PART MATCH: "${newDisplayParts[0]}" exists in "${existingDisplay.displayName}"',
-          );
           return true;
         }
       }
 
-      // Check if all new parts exist in existing parts (for multiple parts addition)
       bool allPartsExist = true;
       for (var newPart in normalizedNewParts) {
         if (!normalizedExistingParts.contains(newPart)) {
@@ -142,19 +134,16 @@ class _DisplayTabState extends State<DisplayTab> {
         }
       }
       if (allPartsExist && normalizedNewParts.isNotEmpty) {
-        print('✓ ALL PARTS EXIST IN: "${existingDisplay.displayName}"');
         return true;
       }
     }
 
-    print('✓ No duplicate found - can add');
     return false;
   }
 
   // Get duplicate details for better error message
   Future<String> _getDuplicateDetails(String displayName) async {
     final newDisplayParts = _splitByDelimiters(displayName);
-
     final normalizedNewParts = newDisplayParts
         .map((part) => _normalizeText(part))
         .toList();
@@ -167,12 +156,10 @@ class _DisplayTabState extends State<DisplayTab> {
       final existingDisplayParts = _splitByDelimiters(
         existingDisplay.displayName,
       );
-
       final normalizedExistingParts = existingDisplayParts
           .map((part) => _normalizeText(part))
           .toList();
 
-      // Check for matches
       for (int i = 0; i < normalizedNewParts.length; i++) {
         final newPart = normalizedNewParts[i];
         final originalNewPart = newDisplayParts[i];
@@ -187,7 +174,6 @@ class _DisplayTabState extends State<DisplayTab> {
         }
       }
 
-      // Check for single part match
       if (newDisplayParts.length == 1) {
         if (normalizedExistingParts.contains(normalizedNewParts[0])) {
           return '"${newDisplayParts[0]}" is already in: "${existingDisplay.displayName}"';
@@ -204,199 +190,322 @@ class _DisplayTabState extends State<DisplayTab> {
     return _normalizeText(part).contains(_normalizeText(query));
   }
 
+  void _scrollToTop() {
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Search bar
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              hintText: 'Search displays...',
-              hintStyle: const TextStyle(fontSize: 13),
-              prefixIcon: const Icon(
-                Icons.search,
-                color: Colors.grey,
-                size: 20,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              filled: true,
-              fillColor: Colors.grey[100],
-              contentPadding: const EdgeInsets.symmetric(vertical: 12),
-              suffixIcon: _searchQuery.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear, size: 18),
-                      onPressed: () {
-                        setState(() {
-                          _searchController.clear();
-                          _searchQuery = '';
-                        });
-                      },
-                    )
-                  : null,
-            ),
-            style: const TextStyle(fontSize: 13),
-            onChanged: (value) {
-              setState(() {
-                _searchQuery = value;
-              });
-            },
+    return Scaffold(
+      backgroundColor: AppColors.backgroundLight,
+      appBar: AppBar(
+        backgroundColor: AppColors.surfaceWhite,
+        elevation: 0,
+        title: Text(
+          'Displays',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
           ),
         ),
-
-        // Add button
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => _showAddDialog(context),
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text(
-                'Add New Display',
-                style: TextStyle(fontSize: 13),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+        centerTitle: false,
+        actions: [
+          // Add button in app bar
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: AppColors.successGreen.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _showAddDialog(context),
+                borderRadius: BorderRadius.circular(20),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Add',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.successGreen,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.add, size: 18, color: AppColors.successGreen),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-
-        const SizedBox(height: 8),
-
-        // Content
-        Expanded(
-          child: StreamBuilder<QuerySnapshot>(
-            stream: _displaysCollection
-                .orderBy('createdAt', descending: true)
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 40,
-                        color: Colors.red[300],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Error loading data',
-                        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                      ),
-                      const SizedBox(height: 8),
-                      ElevatedButton(
-                        onPressed: () => setState(() {}),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                          textStyle: const TextStyle(fontSize: 12),
-                        ),
-                        child: const Text('Retry'),
-                      ),
-                    ],
+        ],
+      ),
+      body: Column(
+        children: [
+          // Search bar with improved visibility
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Container(
+              decoration: BoxDecoration(
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
-                );
-              }
+                ],
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search displays...',
+                  hintStyle: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textTertiary,
+                    fontWeight: FontWeight.w400,
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search,
+                    color: AppColors.textSecondary,
+                    size: 20,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
+                  filled: true,
+                  fillColor: AppColors.surfaceWhite,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: Icon(
+                            Icons.clear,
+                            size: 18,
+                            color: AppColors.textSecondary,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _searchController.clear();
+                              _searchQuery = '';
+                            });
+                          },
+                        )
+                      : null,
+                ),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w400,
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value;
+                  });
+                },
+              ),
+            ),
+          ),
 
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(strokeWidth: 3),
-                );
-              }
-
-              // Convert documents to Display objects
-              _allDisplays = snapshot.data!.docs
-                  .map((doc) => Display.fromFirestore(doc))
-                  .toList();
-
-              // Filter displays based on search query
-              var displays = _allDisplays.where((display) {
-                if (_searchQuery.isEmpty) return true;
-
-                String normalizedQuery = _normalizeText(_searchQuery);
-
-                // Check if any part of the display name matches
-                var parts = _splitByDelimiters(display.displayName);
-                for (var part in parts) {
-                  if (_normalizeText(part).contains(normalizedQuery)) {
-                    return true;
-                  }
-                }
-
-                return _normalizeText(
-                  display.displayName,
-                ).contains(normalizedQuery);
-              }).toList();
-
-              if (displays.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        _searchQuery.isEmpty ? Icons.inbox : Icons.search_off,
-                        size: 56,
-                        color: Colors.grey[400],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        _searchQuery.isEmpty
-                            ? 'No displays added yet'
-                            : 'No matching displays found',
-                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                      ),
-                      if (_searchQuery.isEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          'Tap + to add your first display',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[500],
+          // Content
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _displaysCollection
+                  .orderBy('createdAt', descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: AppColors.errorRed.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.error_outline,
+                            size: 40,
+                            color: AppColors.errorRed,
                           ),
                         ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Error loading data',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          snapshot.error.toString(),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () => setState(() {}),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryBlue,
+                            foregroundColor: Colors.white,
+                            textStyle: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          child: const Text('Retry'),
+                        ),
                       ],
-                    ],
-                  ),
-                );
-              }
-
-              return ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: displays.length,
-                itemBuilder: (context, index) {
-                  return DisplayListItem(
-                    display: displays[index],
-                    searchQuery: _searchQuery,
-                    onTap: () => _showDisplayDetails(context, displays[index]),
-                    onEdit: () => _showEditDialog(context, displays[index]),
-                    onDelete: () => _showDeleteDialog(context, displays[index]),
+                    ),
                   );
-                },
-              );
-            },
+                }
+
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.primaryBlue,
+                      ),
+                    ),
+                  );
+                }
+
+                _allDisplays = snapshot.data!.docs
+                    .map((doc) => Display.fromFirestore(doc))
+                    .toList();
+
+                var displays = _allDisplays.where((display) {
+                  if (_searchQuery.isEmpty) return true;
+
+                  String normalizedQuery = _normalizeText(_searchQuery);
+
+                  var parts = _splitByDelimiters(display.displayName);
+                  for (var part in parts) {
+                    if (_normalizeText(part).contains(normalizedQuery)) {
+                      return true;
+                    }
+                  }
+
+                  return _normalizeText(
+                    display.displayName,
+                  ).contains(normalizedQuery);
+                }).toList();
+
+                if (displays.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: AppColors.textSecondary.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            _searchQuery.isEmpty
+                                ? Icons.inbox
+                                : Icons.search_off,
+                            size: 56,
+                            color: AppColors.textTertiary,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          _searchQuery.isEmpty
+                              ? 'No displays yet'
+                              : 'No matching displays',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _searchQuery.isEmpty
+                              ? 'Tap + in the app bar to add your first display'
+                              : 'Try a different search term',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        if (_searchQuery.isEmpty) ...[
+                          const SizedBox(height: 20),
+                          ElevatedButton.icon(
+                            onPressed: () => _showAddDialog(context),
+                            icon: const Icon(Icons.add, size: 16),
+                            label: const Text('Add New Display'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryBlue,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: displays.length,
+                  itemBuilder: (context, index) {
+                    return DisplayListItem(
+                      display: displays[index],
+                      searchQuery: _searchQuery,
+                      onTap: () =>
+                          _showDisplayDetails(context, displays[index]),
+                      onEdit: () => _showEditDialog(context, displays[index]),
+                      onDelete: () =>
+                          _showDeleteDialog(context, displays[index]),
+                    );
+                  },
+                );
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   void _showAddDialog(BuildContext context) {
     final TextEditingController controller = TextEditingController();
-    final formKey = GlobalKey<FormState>();
+    final GlobalKey<FormState> formKey = GlobalKey<FormState>();
     bool isChecking = false;
 
     showDialog(
@@ -404,36 +513,88 @@ class _DisplayTabState extends State<DisplayTab> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            title: const Text(
-              'Add Display',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            backgroundColor: AppColors.surfaceWhite,
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryBlue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.add,
+                    color: AppColors.primaryBlue,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Add Display',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
             ),
-            content: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 400,
-                    child: TextFormField(
+            content: Container(
+              width: 400,
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Display Name',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
                       controller: controller,
                       decoration: InputDecoration(
-                        labelText: 'Display Name',
-                        labelStyle: const TextStyle(fontSize: 12),
-                        hintText:
-                            'Enter display name (use / = or , to separate multiple displays)',
-                        hintStyle: const TextStyle(fontSize: 11),
+                        hintText: 'e.g., iPhone 13/13 Pro/13 Pro Max',
+                        hintStyle: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textTertiary,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppColors.borderLight),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppColors.borderLight),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: AppColors.primaryBlue,
+                            width: 2,
+                          ),
                         ),
                         filled: true,
-                        fillColor: Colors.grey[50],
+                        fillColor: AppColors.backgroundLight,
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16,
                           vertical: 14,
                         ),
+                        prefixIcon: Icon(
+                          Icons.connected_tv,
+                          size: 18,
+                          color: AppColors.primaryBlue,
+                        ),
                       ),
-                      style: const TextStyle(fontSize: 13),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textPrimary,
+                      ),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
                           return 'Please enter a display name';
@@ -444,19 +605,43 @@ class _DisplayTabState extends State<DisplayTab> {
                       maxLines: 2,
                       minLines: 1,
                     ),
-                  ),
-                  if (isChecking)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 16),
-                      child: LinearProgressIndicator(),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Use / = or , to separate multiple displays',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textTertiary,
+                        fontStyle: FontStyle.italic,
+                      ),
                     ),
-                ],
+                    if (isChecking)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 16),
+                        child: LinearProgressIndicator(
+                          backgroundColor: AppColors.primaryBlue,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel', style: TextStyle(fontSize: 12)),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.textSecondary,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: Text('Cancel', style: TextStyle(fontSize: 12)),
               ),
               ElevatedButton(
                 onPressed: isChecking
@@ -480,13 +665,31 @@ class _DisplayTabState extends State<DisplayTab> {
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(
-                                    duplicateDetails,
-                                    style: const TextStyle(fontSize: 12),
+                                  content: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.warning,
+                                        size: 18,
+                                        color: Colors.white,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          duplicateDetails,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  backgroundColor: Colors.orange,
+                                  backgroundColor: AppColors.warningOrange,
                                   behavior: SnackBarBehavior.floating,
                                   duration: const Duration(seconds: 4),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
                                 ),
                               );
                             }
@@ -505,14 +708,35 @@ class _DisplayTabState extends State<DisplayTab> {
 
                             if (context.mounted) {
                               Navigator.pop(context);
+                              _scrollToTop();
+
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Added successfully',
-                                    style: TextStyle(fontSize: 12),
+                                SnackBar(
+                                  content: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.check_circle,
+                                        size: 18,
+                                        color: Colors.white,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      const Expanded(
+                                        child: Text(
+                                          'Added successfully',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  backgroundColor: Colors.green,
+                                  backgroundColor: AppColors.successGreen,
                                   behavior: SnackBarBehavior.floating,
+                                  duration: const Duration(seconds: 2),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
                                 ),
                               );
                             }
@@ -522,12 +746,31 @@ class _DisplayTabState extends State<DisplayTab> {
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(
-                                    'Error: $e',
-                                    style: TextStyle(fontSize: 12),
+                                  content: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.error,
+                                        size: 18,
+                                        color: Colors.white,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Error: $e',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  backgroundColor: Colors.red,
+                                  backgroundColor: AppColors.errorRed,
                                   behavior: SnackBarBehavior.floating,
+                                  duration: const Duration(seconds: 3),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
                                 ),
                               );
                             }
@@ -535,13 +778,26 @@ class _DisplayTabState extends State<DisplayTab> {
                         }
                       },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
+                  backgroundColor: AppColors.primaryBlue,
                   foregroundColor: Colors.white,
-                  textStyle: const TextStyle(fontSize: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 child: const Text('Add'),
               ),
             ],
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
           );
         },
       ),
@@ -552,7 +808,7 @@ class _DisplayTabState extends State<DisplayTab> {
     final TextEditingController controller = TextEditingController(
       text: display.displayName,
     );
-    final formKey = GlobalKey<FormState>();
+    final GlobalKey<FormState> formKey = GlobalKey<FormState>();
     bool isChecking = false;
 
     showDialog(
@@ -560,9 +816,31 @@ class _DisplayTabState extends State<DisplayTab> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            title: const Text(
-              'Edit Display',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            backgroundColor: AppColors.surfaceWhite,
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryBlue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.edit,
+                    color: AppColors.primaryBlue,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Edit Display',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
             ),
             content: Container(
               width: MediaQuery.of(context).size.width * 0.9,
@@ -575,28 +853,61 @@ class _DisplayTabState extends State<DisplayTab> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(
+                      'Display Name',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
                     Expanded(
                       child: SingleChildScrollView(
                         child: TextFormField(
                           controller: controller,
                           decoration: InputDecoration(
-                            labelText: 'Display Name',
-                            labelStyle: const TextStyle(fontSize: 12),
-                            hintText:
-                                'Enter display name (use / = or , to separate multiple displays)',
-                            hintStyle: const TextStyle(fontSize: 11),
+                            hintText: 'e.g., iPhone 13/13 Pro/13 Pro Max',
+                            hintStyle: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textTertiary,
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: AppColors.borderLight,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: AppColors.borderLight,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: AppColors.primaryBlue,
+                                width: 2,
+                              ),
                             ),
                             filled: true,
-                            fillColor: Colors.grey[50],
+                            fillColor: AppColors.backgroundLight,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 14,
                             ),
+                            prefixIcon: Icon(
+                              Icons.connected_tv,
+                              size: 18,
+                              color: AppColors.primaryBlue,
+                            ),
                             alignLabelWithHint: true,
                           ),
-                          style: const TextStyle(fontSize: 13),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textPrimary,
+                          ),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
                               return 'Please enter a display name';
@@ -610,10 +921,24 @@ class _DisplayTabState extends State<DisplayTab> {
                         ),
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Use / = or , to separate multiple displays',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textTertiary,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
                     if (isChecking)
                       const Padding(
                         padding: EdgeInsets.only(top: 16),
-                        child: LinearProgressIndicator(),
+                        child: LinearProgressIndicator(
+                          backgroundColor: AppColors.primaryBlue,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
                       ),
                   ],
                 ),
@@ -622,7 +947,17 @@ class _DisplayTabState extends State<DisplayTab> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel', style: TextStyle(fontSize: 12)),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.textSecondary,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: Text('Cancel', style: TextStyle(fontSize: 12)),
               ),
               ElevatedButton(
                 onPressed: isChecking
@@ -647,13 +982,31 @@ class _DisplayTabState extends State<DisplayTab> {
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(
-                                    duplicateDetails,
-                                    style: const TextStyle(fontSize: 12),
+                                  content: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.warning,
+                                        size: 18,
+                                        color: Colors.white,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          duplicateDetails,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  backgroundColor: Colors.orange,
+                                  backgroundColor: AppColors.warningOrange,
                                   behavior: SnackBarBehavior.floating,
                                   duration: const Duration(seconds: 4),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
                                 ),
                               );
                             }
@@ -671,13 +1024,32 @@ class _DisplayTabState extends State<DisplayTab> {
                             if (context.mounted) {
                               Navigator.pop(context);
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Updated successfully',
-                                    style: TextStyle(fontSize: 12),
+                                SnackBar(
+                                  content: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.check_circle,
+                                        size: 18,
+                                        color: Colors.white,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      const Expanded(
+                                        child: Text(
+                                          'Updated successfully',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  backgroundColor: Colors.green,
+                                  backgroundColor: AppColors.successGreen,
                                   behavior: SnackBarBehavior.floating,
+                                  duration: const Duration(seconds: 2),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
                                 ),
                               );
                             }
@@ -687,12 +1059,31 @@ class _DisplayTabState extends State<DisplayTab> {
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(
-                                    'Error: $e',
-                                    style: TextStyle(fontSize: 12),
+                                  content: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.error,
+                                        size: 18,
+                                        color: Colors.white,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Error: $e',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  backgroundColor: Colors.red,
+                                  backgroundColor: AppColors.errorRed,
                                   behavior: SnackBarBehavior.floating,
+                                  duration: const Duration(seconds: 3),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
                                 ),
                               );
                             }
@@ -700,9 +1091,19 @@ class _DisplayTabState extends State<DisplayTab> {
                         }
                       },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
+                  backgroundColor: AppColors.primaryBlue,
                   foregroundColor: Colors.white,
-                  textStyle: const TextStyle(fontSize: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 child: const Text('Update'),
               ),
@@ -711,27 +1112,43 @@ class _DisplayTabState extends State<DisplayTab> {
               horizontal: 16,
               vertical: 24,
             ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
           );
         },
       ),
     );
   }
 
+  // Updated Delete Dialog with Confirmation
   void _showDeleteDialog(BuildContext context, Display display) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surfaceWhite,
         title: Row(
           children: [
-            Icon(
-              Icons.warning_amber_rounded,
-              color: Colors.orange[700],
-              size: 24,
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.errorRed.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.warning_amber_rounded,
+                color: AppColors.errorRed,
+                size: 20,
+              ),
             ),
-            const SizedBox(width: 8),
-            const Text(
+            const SizedBox(width: 12),
+            Text(
               'Confirm Delete',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
             ),
           ],
         ),
@@ -741,26 +1158,31 @@ class _DisplayTabState extends State<DisplayTab> {
           children: [
             Text(
               'Are you sure you want to delete this display?',
-              style: TextStyle(fontSize: 13, color: Colors.grey[800]),
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+                height: 1.4,
+              ),
             ),
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.red.withOpacity(0.2)),
+                color: AppColors.errorRed.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.errorRed.withOpacity(0.2)),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, size: 16, color: Colors.red[700]),
+                  Icon(Icons.info_outline, size: 16, color: AppColors.errorRed),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       '"${display.displayName}"',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
+                        color: AppColors.textPrimary,
                       ),
                     ),
                   ),
@@ -772,7 +1194,7 @@ class _DisplayTabState extends State<DisplayTab> {
               'This action cannot be undone.',
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.grey[600],
+                color: AppColors.textTertiary,
                 fontStyle: FontStyle.italic,
               ),
             ),
@@ -782,10 +1204,13 @@ class _DisplayTabState extends State<DisplayTab> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             style: TextButton.styleFrom(
-              foregroundColor: Colors.grey[700],
+              foregroundColor: AppColors.textSecondary,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
-            child: const Text('Cancel', style: TextStyle(fontSize: 12)),
+            child: Text('Cancel', style: TextStyle(fontSize: 12)),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -793,7 +1218,7 @@ class _DisplayTabState extends State<DisplayTab> {
                 await _displaysCollection.doc(display.id).delete();
 
                 if (context.mounted) {
-                  Navigator.pop(context); // Close delete dialog
+                  Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Row(
@@ -804,23 +1229,29 @@ class _DisplayTabState extends State<DisplayTab> {
                             color: Colors.white,
                           ),
                           const SizedBox(width: 8),
-                          Expanded(
+                          const Expanded(
                             child: Text(
                               'Display deleted successfully',
-                              style: const TextStyle(fontSize: 12),
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ],
                       ),
-                      backgroundColor: Colors.green,
+                      backgroundColor: AppColors.successGreen,
                       behavior: SnackBarBehavior.floating,
-                      duration: const Duration(seconds: 3),
+                      duration: const Duration(seconds: 2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   );
                 }
               } catch (e) {
                 if (context.mounted) {
-                  Navigator.pop(context); // Close delete dialog
+                  Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Row(
@@ -830,25 +1261,31 @@ class _DisplayTabState extends State<DisplayTab> {
                           Expanded(
                             child: Text(
                               'Error: ${e.toString()}',
-                              style: const TextStyle(fontSize: 12),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.white,
+                              ),
                             ),
                           ),
                         ],
                       ),
-                      backgroundColor: Colors.red,
+                      backgroundColor: AppColors.errorRed,
                       behavior: SnackBarBehavior.floating,
-                      duration: const Duration(seconds: 4),
+                      duration: const Duration(seconds: 3),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
                   );
                 }
               }
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
+              backgroundColor: AppColors.errorRed,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(10),
               ),
               textStyle: const TextStyle(
                 fontSize: 12,
@@ -858,7 +1295,7 @@ class _DisplayTabState extends State<DisplayTab> {
             child: const Text('Delete'),
           ),
         ],
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
     );
   }
@@ -867,8 +1304,9 @@ class _DisplayTabState extends State<DisplayTab> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) => DisplayDetailsSheet(display: display),
     );
@@ -877,11 +1315,12 @@ class _DisplayTabState extends State<DisplayTab> {
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 }
 
-// Display List Item Widget - with buttons at bottom
+// UPDATED Display List Item Widget - with improved visibility (same as ScreenGuard)
 class DisplayListItem extends StatelessWidget {
   final Display display;
   final String searchQuery;
@@ -925,11 +1364,11 @@ class DisplayListItem extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 1,
-      shadowColor: Colors.grey.withOpacity(0.3),
+      elevation: 2,
+      shadowColor: Colors.black.withOpacity(0.1),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.shade200, width: 1),
+        side: BorderSide(color: AppColors.borderLight, width: 1),
       ),
       child: InkWell(
         onTap: onTap,
@@ -939,7 +1378,7 @@ class DisplayListItem extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Display parts chips
+              // Display parts chips - improved visibility
               Wrap(
                 spacing: 6,
                 runSpacing: 8,
@@ -947,31 +1386,29 @@ class DisplayListItem extends StatelessWidget {
                   final isMatch = _isPartMatch(part, searchQuery);
                   return Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
+                      horizontal: 12,
+                      vertical: 6,
                     ),
                     decoration: BoxDecoration(
                       color: isMatch
-                          ? Colors.blue.withOpacity(0.15)
-                          : Colors.grey.shade50,
+                          ? AppColors.primaryBlue.withOpacity(0.15)
+                          : AppColors.backgroundLight,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: isMatch
-                            ? Colors.blue.shade300
-                            : Colors.grey.shade200,
-                        width: 1,
+                            ? AppColors.primaryBlue.withOpacity(0.3)
+                            : AppColors.borderLight,
+                        width: isMatch ? 1.5 : 1,
                       ),
                     ),
                     child: Text(
                       part.trim(),
                       style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: isMatch
-                            ? FontWeight.w600
-                            : FontWeight.normal,
+                        fontSize: 13,
+                        fontWeight: isMatch ? FontWeight.w600 : FontWeight.w500,
                         color: isMatch
-                            ? Colors.blue.shade700
-                            : Colors.grey.shade700,
+                            ? AppColors.primaryBlue
+                            : AppColors.textPrimary,
                       ),
                     ),
                   );
@@ -984,10 +1421,10 @@ class DisplayListItem extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  // Edit button
+                  // Edit button - improved visibility
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.blue.withOpacity(0.1),
+                      color: AppColors.primaryBlue.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Material(
@@ -995,19 +1432,23 @@ class DisplayListItem extends StatelessWidget {
                       child: InkWell(
                         onTap: onEdit,
                         borderRadius: BorderRadius.circular(8),
-                        child: const Padding(
-                          padding: EdgeInsets.all(8),
-                          child: Icon(Icons.edit, size: 16, color: Colors.blue),
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Icon(
+                            Icons.edit,
+                            size: 18,
+                            color: AppColors.primaryBlue,
+                          ),
                         ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 12),
 
-                  // Delete button
+                  // Delete button - improved visibility
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.1),
+                      color: AppColors.errorRed.withOpacity(0.1),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Material(
@@ -1015,12 +1456,12 @@ class DisplayListItem extends StatelessWidget {
                       child: InkWell(
                         onTap: onDelete,
                         borderRadius: BorderRadius.circular(8),
-                        child: const Padding(
-                          padding: EdgeInsets.all(8),
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
                           child: Icon(
                             Icons.delete_outline,
-                            size: 16,
-                            color: Colors.red,
+                            size: 18,
+                            color: AppColors.errorRed,
                           ),
                         ),
                       ),
@@ -1041,7 +1482,7 @@ class DisplayListItem extends StatelessWidget {
   }
 }
 
-// Display Details Bottom Sheet
+// Display Details Bottom Sheet - improved visibility (same as ScreenGuard)
 class DisplayDetailsSheet extends StatelessWidget {
   final Display display;
 
@@ -1061,27 +1502,31 @@ class DisplayDetailsSheet extends StatelessWidget {
     final displayParts = _splitByDelimiters(display.displayName);
 
     return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       padding: const EdgeInsets.all(20),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Header handle
+          // Header handle - improved visibility
           Container(
-            width: 36,
+            width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.grey[300],
+              color: AppColors.textTertiary.withOpacity(0.3),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
 
-          // Icon
+          // Icon with better contrast
           Container(
             width: 70,
             height: 70,
             decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.1),
+              color: AppColors.primaryBlue.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: Center(
@@ -1089,17 +1534,17 @@ class DisplayDetailsSheet extends StatelessWidget {
                 display.displayName.isNotEmpty
                     ? display.displayName[0].toUpperCase()
                     : '?',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
-                  color: Colors.blue,
+                  color: AppColors.primaryBlue,
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 20),
 
-          // Title with parts
+          // Title with parts - improved contrast
           Wrap(
             spacing: 6,
             runSpacing: 6,
@@ -1107,64 +1552,79 @@ class DisplayDetailsSheet extends StatelessWidget {
             children: displayParts.map((part) {
               return Container(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 4,
+                  horizontal: 12,
+                  vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade300),
+                  color: AppColors.backgroundLight,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.borderLight),
                 ),
                 child: Text(
                   part.trim(),
-                  style: const TextStyle(
-                    fontSize: 13,
+                  style: TextStyle(
+                    fontSize: 14,
                     fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary,
                   ),
                 ),
               );
             }).toList(),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
 
-          // Details
+          // Details section - improved readability
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.grey[50],
+              color: AppColors.backgroundLight,
               borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.borderLight),
             ),
             child: Column(
               children: [
                 _buildInfoRow(
                   'Created',
-                  DateFormat('MMM dd, yyyy').format(display.createdAt),
+                  DateFormat(
+                    'MMM dd, yyyy · hh:mm a',
+                  ).format(display.createdAt),
                 ),
-                const Divider(height: 12),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Divider(height: 1),
+                ),
                 _buildInfoRow(
                   'Last Updated',
-                  DateFormat('MMM dd, yyyy').format(display.updatedAt),
+                  DateFormat(
+                    'MMM dd, yyyy · hh:mm a',
+                  ).format(display.updatedAt),
                 ),
-                const Divider(height: 12),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Divider(height: 1),
+                ),
                 _buildInfoRow('ID', '${display.id.substring(0, 8)}...'),
               ],
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 20),
 
-          // Close button
+          // Close button - improved visibility
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () => Navigator.pop(context),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
+                backgroundColor: AppColors.primaryBlue,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                textStyle: const TextStyle(fontSize: 13),
+                textStyle: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               child: const Text('Close'),
             ),
@@ -1178,10 +1638,21 @@ class DisplayDetailsSheet extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
         Text(
           value,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+          style: TextStyle(
+            fontSize: 13,
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
     );

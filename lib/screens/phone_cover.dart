@@ -2,6 +2,21 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+// Add this AppColors class at the top of the file
+class AppColors {
+  static const Color primaryBlue = Color(0xFF2563EB);
+  static const Color primaryDarkBlue = Color(0xFF1E40AF);
+  static const Color successGreen = Color(0xFF059669);
+  static const Color warningOrange = Color(0xFFD97706);
+  static const Color errorRed = Color(0xFFDC2626);
+  static const Color textPrimary = Color(0xFF111827);
+  static const Color textSecondary = Color(0xFF4B5563);
+  static const Color textTertiary = Color(0xFF9CA3AF);
+  static const Color backgroundLight = Color(0xFFF9FAFB);
+  static const Color surfaceWhite = Color(0xFFFFFFFF);
+  static const Color borderLight = Color(0xFFE5E7EB);
+}
+
 // Model Class
 class PhoneCover {
   final String id;
@@ -27,7 +42,7 @@ class PhoneCover {
   }
 }
 
-// Main Phone Cover Tab
+// Main Phone Cover Tab - IMPROVED DESIGN with App Bar Add Button
 class PhoneCoverTab extends StatefulWidget {
   const PhoneCoverTab({super.key});
 
@@ -39,13 +54,13 @@ class _PhoneCoverTabState extends State<PhoneCoverTab> {
   final TextEditingController _searchController = TextEditingController();
   final CollectionReference _coversCollection = FirebaseFirestore.instance
       .collection('phoneCovers');
+  final ScrollController _scrollController = ScrollController();
 
   String _searchQuery = '';
   List<PhoneCover> _allCovers = [];
 
   // Helper method to split text by multiple delimiters
   List<String> _splitByDelimiters(String text) {
-    // Split by '/', '=', ',' and trim each part
     return text
         .split(RegExp(r'[/=,]'))
         .map((part) => part.trim())
@@ -67,39 +82,25 @@ class _PhoneCoverTabState extends State<PhoneCoverTab> {
 
   // Enhanced duplicate checking with better edge case handling
   Future<bool> _isModelNameExists(String modelName, {String? excludeId}) async {
-    // Get all model parts from the new input using multiple delimiters
     final newModelParts = _splitByDelimiters(modelName);
-
     final normalizedNewParts = newModelParts
         .map((part) => _normalizeText(part))
         .toList();
-
-    print('=== Checking for duplicates ===');
-    print('New model: "$modelName"');
-    print('Parts: $newModelParts');
-    print('Normalized parts: $normalizedNewParts');
 
     final snapshot = await _coversCollection.get();
 
     for (var doc in snapshot.docs) {
       final existingCover = PhoneCover.fromFirestore(doc);
 
-      // Skip if we're editing and it's the same document
       if (excludeId != null && existingCover.id == excludeId) {
         continue;
       }
 
-      // Get existing model parts using multiple delimiters
       final existingModelParts = _splitByDelimiters(existingCover.modelName);
-
       final normalizedExistingParts = existingModelParts
           .map((part) => _normalizeText(part))
           .toList();
 
-      print('Checking against: "${existingCover.modelName}"');
-      print('Existing parts: $existingModelParts');
-
-      // Check for exact matches in parts
       for (int i = 0; i < normalizedNewParts.length; i++) {
         final newPart = normalizedNewParts[i];
         final originalNewPart = newModelParts[i];
@@ -108,27 +109,18 @@ class _PhoneCoverTabState extends State<PhoneCoverTab> {
           final existingPart = normalizedExistingParts[j];
           final originalExistingPart = existingModelParts[j];
 
-          // Check if parts match exactly after normalization
           if (newPart == existingPart) {
-            print(
-              '✓ DUPLICATE FOUND: "$originalNewPart" matches "$originalExistingPart"',
-            );
             return true;
           }
         }
       }
 
-      // Check if any new part exists in existing parts (for single part addition)
       if (newModelParts.length == 1) {
         if (normalizedExistingParts.contains(normalizedNewParts[0])) {
-          print(
-            '✓ SINGLE PART MATCH: "${newModelParts[0]}" exists in "${existingCover.modelName}"',
-          );
           return true;
         }
       }
 
-      // Check if all new parts exist in existing parts (for multiple parts addition)
       bool allPartsExist = true;
       for (var newPart in normalizedNewParts) {
         if (!normalizedExistingParts.contains(newPart)) {
@@ -137,53 +129,16 @@ class _PhoneCoverTabState extends State<PhoneCoverTab> {
         }
       }
       if (allPartsExist && normalizedNewParts.isNotEmpty) {
-        print('✓ ALL PARTS EXIST IN: "${existingCover.modelName}"');
         return true;
-      }
-
-      // Check for partial matches (to catch variations)
-      for (int i = 0; i < normalizedNewParts.length; i++) {
-        final newPart = normalizedNewParts[i];
-        final originalNewPart = newModelParts[i];
-
-        for (int j = 0; j < normalizedExistingParts.length; j++) {
-          final existingPart = normalizedExistingParts[j];
-          final originalExistingPart = existingModelParts[j];
-
-          // Skip very short parts (like "v" or "5g" might cause false positives)
-          if (newPart.length < 3 || existingPart.length < 3) continue;
-
-          // Check if one contains the other
-          if (existingPart.contains(newPart) ||
-              newPart.contains(existingPart)) {
-            // Calculate similarity ratio
-            double similarity;
-            if (newPart.length <= existingPart.length) {
-              similarity = newPart.length / existingPart.length;
-            } else {
-              similarity = existingPart.length / newPart.length;
-            }
-
-            // Only consider it a duplicate if similarity is high (over 70%)
-            if (similarity > 0.7) {
-              print(
-                '✓ SIMILAR FOUND: "$originalNewPart" is ${(similarity * 100).toStringAsFixed(0)}% similar to "$originalExistingPart"',
-              );
-              return true;
-            }
-          }
-        }
       }
     }
 
-    print('✓ No duplicate found - can add');
     return false;
   }
 
   // Get duplicate details for better error message
   Future<String> _getDuplicateDetails(String modelName) async {
     final newModelParts = _splitByDelimiters(modelName);
-
     final normalizedNewParts = newModelParts
         .map((part) => _normalizeText(part))
         .toList();
@@ -194,12 +149,10 @@ class _PhoneCoverTabState extends State<PhoneCoverTab> {
       final existingCover = PhoneCover.fromFirestore(doc);
 
       final existingModelParts = _splitByDelimiters(existingCover.modelName);
-
       final normalizedExistingParts = existingModelParts
           .map((part) => _normalizeText(part))
           .toList();
 
-      // Check for exact matches
       for (int i = 0; i < normalizedNewParts.length; i++) {
         final newPart = normalizedNewParts[i];
         final originalNewPart = newModelParts[i];
@@ -214,37 +167,9 @@ class _PhoneCoverTabState extends State<PhoneCoverTab> {
         }
       }
 
-      // Check for single part match
       if (newModelParts.length == 1) {
         if (normalizedExistingParts.contains(normalizedNewParts[0])) {
           return '"${newModelParts[0]}" is already in: "${existingCover.modelName}"';
-        }
-      }
-
-      // Check for partial matches
-      for (int i = 0; i < normalizedNewParts.length; i++) {
-        final newPart = normalizedNewParts[i];
-        final originalNewPart = newModelParts[i];
-
-        for (int j = 0; j < normalizedExistingParts.length; j++) {
-          final existingPart = normalizedExistingParts[j];
-          final originalExistingPart = existingModelParts[j];
-
-          if (newPart.length < 3 || existingPart.length < 3) continue;
-
-          if (existingPart.contains(newPart) ||
-              newPart.contains(existingPart)) {
-            double similarity;
-            if (newPart.length <= existingPart.length) {
-              similarity = newPart.length / existingPart.length;
-            } else {
-              similarity = existingPart.length / newPart.length;
-            }
-
-            if (similarity > 0.7) {
-              return '"$originalNewPart" is very similar to "$originalExistingPart" in "${existingCover.modelName}"';
-            }
-          }
         }
       }
     }
@@ -258,200 +183,320 @@ class _PhoneCoverTabState extends State<PhoneCoverTab> {
     return _normalizeText(part).contains(_normalizeText(query));
   }
 
+  void _scrollToTop() {
+    _scrollController.animateTo(
+      0,
+      duration: const Duration(milliseconds: 500),
+      curve: Curves.easeInOut,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // Search bar
-        Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: TextField(
-            controller: _searchController,
-            decoration: InputDecoration(
-              hintText: 'Search models...',
-              hintStyle: const TextStyle(fontSize: 13),
-              prefixIcon: const Icon(
-                Icons.search,
-                color: Colors.grey,
-                size: 20,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide.none,
-              ),
-              filled: true,
-              fillColor: Colors.grey[100],
-              contentPadding: const EdgeInsets.symmetric(vertical: 12),
-              suffixIcon: _searchQuery.isNotEmpty
-                  ? IconButton(
-                      icon: const Icon(Icons.clear, size: 18),
-                      onPressed: () {
-                        setState(() {
-                          _searchController.clear();
-                          _searchQuery = '';
-                        });
-                      },
-                    )
-                  : null,
-            ),
-            style: const TextStyle(fontSize: 13),
-            onChanged: (value) {
-              setState(() {
-                _searchQuery = value;
-              });
-            },
+    return Scaffold(
+      backgroundColor: AppColors.backgroundLight,
+      appBar: AppBar(
+        backgroundColor: AppColors.surfaceWhite,
+        elevation: 0,
+        title: Text(
+          'Phone Covers',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
           ),
         ),
-
-        // Add button
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => _showAddDialog(context),
-              icon: const Icon(Icons.add, size: 18),
-              label: const Text(
-                'Add New Model',
-                style: TextStyle(fontSize: 13),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+        centerTitle: false,
+        actions: [
+          // Add button in app bar
+          Container(
+            margin: const EdgeInsets.only(right: 8),
+            decoration: BoxDecoration(
+              color: AppColors.successGreen.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: () => _showAddDialog(context),
+                borderRadius: BorderRadius.circular(20),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Add',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.successGreen,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(Icons.add, size: 18, color: AppColors.successGreen),
+                    ],
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-
-        const SizedBox(height: 8),
-
-        // Content
-        Expanded(
-          child: StreamBuilder<QuerySnapshot>(
-            stream: _coversCollection
-                .orderBy('createdAt', descending: true)
-                .snapshots(),
-            builder: (context, snapshot) {
-              if (snapshot.hasError) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.error_outline,
-                        size: 40,
-                        color: Colors.red[300],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Error loading data',
-                        style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-                      ),
-                      const SizedBox(height: 8),
-                      ElevatedButton(
-                        onPressed: () => setState(() {}),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue,
-                          foregroundColor: Colors.white,
-                          textStyle: const TextStyle(fontSize: 12),
-                        ),
-                        child: const Text('Retry'),
-                      ),
-                    ],
+        ],
+      ),
+      body: Column(
+        children: [
+          // Search bar with improved visibility
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: Container(
+              decoration: BoxDecoration(
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
                   ),
-                );
-              }
+                ],
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: TextField(
+                controller: _searchController,
+                decoration: InputDecoration(
+                  hintText: 'Search models...',
+                  hintStyle: TextStyle(
+                    fontSize: 13,
+                    color: AppColors.textTertiary,
+                    fontWeight: FontWeight.w400,
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search,
+                    color: AppColors.textSecondary,
+                    size: 20,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
+                  filled: true,
+                  fillColor: AppColors.surfaceWhite,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                  suffixIcon: _searchQuery.isNotEmpty
+                      ? IconButton(
+                          icon: Icon(
+                            Icons.clear,
+                            size: 18,
+                            color: AppColors.textSecondary,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              _searchController.clear();
+                              _searchQuery = '';
+                            });
+                          },
+                        )
+                      : null,
+                ),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: AppColors.textPrimary,
+                  fontWeight: FontWeight.w400,
+                ),
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value;
+                  });
+                },
+              ),
+            ),
+          ),
 
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(
-                  child: CircularProgressIndicator(strokeWidth: 3),
-                );
-              }
-
-              // Convert documents to PhoneCover objects
-              _allCovers = snapshot.data!.docs
-                  .map((doc) => PhoneCover.fromFirestore(doc))
-                  .toList();
-
-              // Filter covers based on search query
-              var covers = _allCovers.where((cover) {
-                if (_searchQuery.isEmpty) return true;
-
-                String normalizedQuery = _normalizeText(_searchQuery);
-
-                // Check if any part of the model name matches
-                var parts = _splitByDelimiters(cover.modelName);
-                for (var part in parts) {
-                  if (_normalizeText(part).contains(normalizedQuery)) {
-                    return true;
-                  }
-                }
-
-                return _normalizeText(
-                  cover.modelName,
-                ).contains(normalizedQuery);
-              }).toList();
-
-              if (covers.isEmpty) {
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        _searchQuery.isEmpty ? Icons.inbox : Icons.search_off,
-                        size: 56,
-                        color: Colors.grey[400],
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        _searchQuery.isEmpty
-                            ? 'No phone covers added yet'
-                            : 'No matching models found',
-                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
-                      ),
-                      if (_searchQuery.isEmpty) ...[
-                        const SizedBox(height: 8),
-                        Text(
-                          'Tap + to add your first model',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[500],
+          // Content
+          Expanded(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: _coversCollection
+                  .orderBy('createdAt', descending: true)
+                  .snapshots(),
+              builder: (context, snapshot) {
+                if (snapshot.hasError) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: AppColors.errorRed.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.error_outline,
+                            size: 40,
+                            color: AppColors.errorRed,
                           ),
                         ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Error loading data',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: AppColors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          snapshot.error.toString(),
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.textSecondary,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton(
+                          onPressed: () => setState(() {}),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryBlue,
+                            foregroundColor: Colors.white,
+                            textStyle: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                          ),
+                          child: const Text('Retry'),
+                        ),
                       ],
-                    ],
-                  ),
-                );
-              }
-
-              return ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                itemCount: covers.length,
-                itemBuilder: (context, index) {
-                  return CoverListItem(
-                    cover: covers[index],
-                    searchQuery: _searchQuery,
-                    onTap: () => _showCoverDetails(context, covers[index]),
-                    onEdit: () => _showEditBottomSheet(context, covers[index]),
-                    onDelete: () =>
-                        _showDeleteBottomSheet(context, covers[index]),
+                    ),
                   );
-                },
-              );
-            },
+                }
+
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 3,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        AppColors.primaryBlue,
+                      ),
+                    ),
+                  );
+                }
+
+                _allCovers = snapshot.data!.docs
+                    .map((doc) => PhoneCover.fromFirestore(doc))
+                    .toList();
+
+                var covers = _allCovers.where((cover) {
+                  if (_searchQuery.isEmpty) return true;
+
+                  String normalizedQuery = _normalizeText(_searchQuery);
+
+                  var parts = _splitByDelimiters(cover.modelName);
+                  for (var part in parts) {
+                    if (_normalizeText(part).contains(normalizedQuery)) {
+                      return true;
+                    }
+                  }
+
+                  return _normalizeText(
+                    cover.modelName,
+                  ).contains(normalizedQuery);
+                }).toList();
+
+                if (covers.isEmpty) {
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: AppColors.textSecondary.withOpacity(0.1),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            _searchQuery.isEmpty
+                                ? Icons.inbox
+                                : Icons.search_off,
+                            size: 56,
+                            color: AppColors.textTertiary,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          _searchQuery.isEmpty
+                              ? 'No phone covers yet'
+                              : 'No matching models',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          _searchQuery.isEmpty
+                              ? 'Tap + in the app bar to add your first model'
+                              : 'Try a different search term',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textSecondary,
+                          ),
+                        ),
+                        if (_searchQuery.isEmpty) ...[
+                          const SizedBox(height: 20),
+                          ElevatedButton.icon(
+                            onPressed: () => _showAddDialog(context),
+                            icon: const Icon(Icons.add, size: 16),
+                            label: const Text('Add New Model'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryBlue,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 12,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                }
+
+                return ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: covers.length,
+                  itemBuilder: (context, index) {
+                    return CoverListItem(
+                      cover: covers[index],
+                      searchQuery: _searchQuery,
+                      onTap: () => _showCoverDetails(context, covers[index]),
+                      onEdit: () => _showEditDialog(context, covers[index]),
+                      onDelete: () => _showDeleteDialog(context, covers[index]),
+                    );
+                  },
+                );
+              },
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   void _showAddDialog(BuildContext context) {
     final TextEditingController controller = TextEditingController();
-    final formKey = GlobalKey<FormState>();
+    final GlobalKey<FormState> formKey = GlobalKey<FormState>();
     bool isChecking = false;
 
     showDialog(
@@ -459,36 +504,83 @@ class _PhoneCoverTabState extends State<PhoneCoverTab> {
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) {
           return AlertDialog(
-            title: const Text(
-              'Add Phone Cover',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            backgroundColor: AppColors.surfaceWhite,
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryBlue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.add,
+                    color: AppColors.primaryBlue,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Add Phone Cover',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
             ),
-            content: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 400,
-                    child: TextFormField(
+            content: Container(
+              width: 400,
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Model Name',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
                       controller: controller,
                       decoration: InputDecoration(
-                        labelText: 'Model Name',
-                        labelStyle: const TextStyle(fontSize: 12),
-                        hintText:
-                            'Enter model name (use / = or , to separate multiple models)',
-                        hintStyle: const TextStyle(fontSize: 11),
+                        hintText: 'e.g., iPhone 13/13 Pro/13 Pro Max',
+                        hintStyle: TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textTertiary,
+                        ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppColors.borderLight),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: AppColors.borderLight),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(
+                            color: AppColors.primaryBlue,
+                            width: 2,
+                          ),
                         ),
                         filled: true,
-                        fillColor: Colors.grey[50],
+                        fillColor: AppColors.backgroundLight,
                         contentPadding: const EdgeInsets.symmetric(
                           horizontal: 16,
                           vertical: 14,
                         ),
                       ),
-                      style: const TextStyle(fontSize: 13),
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: AppColors.textPrimary,
+                      ),
                       validator: (value) {
                         if (value == null || value.trim().isEmpty) {
                           return 'Please enter a model name';
@@ -499,19 +591,43 @@ class _PhoneCoverTabState extends State<PhoneCoverTab> {
                       maxLines: 2,
                       minLines: 1,
                     ),
-                  ),
-                  if (isChecking)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 16),
-                      child: LinearProgressIndicator(),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Use / = or , to separate multiple models',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textTertiary,
+                        fontStyle: FontStyle.italic,
+                      ),
                     ),
-                ],
+                    if (isChecking)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 16),
+                        child: LinearProgressIndicator(
+                          backgroundColor: AppColors.primaryBlue,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel', style: TextStyle(fontSize: 12)),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.textSecondary,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: Text('Cancel', style: TextStyle(fontSize: 12)),
               ),
               ElevatedButton(
                 onPressed: isChecking
@@ -533,13 +649,31 @@ class _PhoneCoverTabState extends State<PhoneCoverTab> {
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(
-                                    duplicateDetails,
-                                    style: const TextStyle(fontSize: 12),
+                                  content: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.warning,
+                                        size: 18,
+                                        color: Colors.white,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          duplicateDetails,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  backgroundColor: Colors.orange,
+                                  backgroundColor: AppColors.warningOrange,
                                   behavior: SnackBarBehavior.floating,
                                   duration: const Duration(seconds: 4),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
                                 ),
                               );
                             }
@@ -558,14 +692,35 @@ class _PhoneCoverTabState extends State<PhoneCoverTab> {
 
                             if (context.mounted) {
                               Navigator.pop(context);
+                              _scrollToTop();
+
                               ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text(
-                                    'Added successfully',
-                                    style: TextStyle(fontSize: 12),
+                                SnackBar(
+                                  content: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.check_circle,
+                                        size: 18,
+                                        color: Colors.white,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      const Expanded(
+                                        child: Text(
+                                          'Added successfully',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  backgroundColor: Colors.green,
+                                  backgroundColor: AppColors.successGreen,
                                   behavior: SnackBarBehavior.floating,
+                                  duration: const Duration(seconds: 2),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
                                 ),
                               );
                             }
@@ -575,12 +730,31 @@ class _PhoneCoverTabState extends State<PhoneCoverTab> {
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text(
-                                    'Error: $e',
-                                    style: TextStyle(fontSize: 12),
+                                  content: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.error,
+                                        size: 18,
+                                        color: Colors.white,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Error: $e',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
                                   ),
-                                  backgroundColor: Colors.red,
+                                  backgroundColor: AppColors.errorRed,
                                   behavior: SnackBarBehavior.floating,
+                                  duration: const Duration(seconds: 3),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
                                 ),
                               );
                             }
@@ -588,116 +762,130 @@ class _PhoneCoverTabState extends State<PhoneCoverTab> {
                         }
                       },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue,
+                  backgroundColor: AppColors.primaryBlue,
                   foregroundColor: Colors.white,
-                  textStyle: const TextStyle(fontSize: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 child: const Text('Add'),
               ),
             ],
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
           );
         },
       ),
     );
   }
 
-  // Fixed Edit Bottom Sheet with proper keyboard handling
-  void _showEditBottomSheet(BuildContext context, PhoneCover cover) {
+  void _showEditDialog(BuildContext context, PhoneCover cover) {
     final TextEditingController controller = TextEditingController(
       text: cover.modelName,
     );
-    final formKey = GlobalKey<FormState>();
+    final GlobalKey<FormState> formKey = GlobalKey<FormState>();
     bool isChecking = false;
 
-    showModalBottomSheet(
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
       builder: (context) => StatefulBuilder(
-        builder: (context, setSheetState) {
-          return Padding(
-            padding: EdgeInsets.only(
-              bottom: MediaQuery.of(context).viewInsets.bottom,
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            backgroundColor: AppColors.surfaceWhite,
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryBlue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    Icons.edit,
+                    color: AppColors.primaryBlue,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  'Edit Phone Cover',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary,
+                  ),
+                ),
+              ],
             ),
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Header handle
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2),
+            content: Container(
+              width: MediaQuery.of(context).size.width * 0.9,
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.5,
+              ),
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Model Name',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textSecondary,
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Title
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(
-                          Icons.edit,
-                          size: 18,
-                          color: Colors.blue,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      const Text(
-                        'Edit Phone Cover',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-
-                  // Form with properly sized text field
-                  Form(
-                    key: formKey,
-                    child: ConstrainedBox(
-                      constraints: BoxConstraints(
-                        maxHeight: MediaQuery.of(context).size.height * 0.4,
-                      ),
+                    const SizedBox(height: 8),
+                    Expanded(
                       child: SingleChildScrollView(
                         child: TextFormField(
                           controller: controller,
                           decoration: InputDecoration(
-                            labelText: 'Model Name',
-                            labelStyle: const TextStyle(fontSize: 12),
-                            hintText:
-                                'Enter model name (use / = or , to separate multiple models)',
-                            hintStyle: const TextStyle(fontSize: 11),
+                            hintText: 'e.g., iPhone 13/13 Pro/13 Pro Max',
+                            hintStyle: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.textTertiary,
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: AppColors.borderLight,
+                              ),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: AppColors.borderLight,
+                              ),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: AppColors.primaryBlue,
+                                width: 2,
+                              ),
                             ),
                             filled: true,
-                            fillColor: Colors.grey[50],
+                            fillColor: AppColors.backgroundLight,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 14,
                             ),
-                            prefixIcon: const Icon(
-                              Icons.phone_android,
-                              size: 18,
-                            ),
                           ),
-                          style: const TextStyle(fontSize: 13),
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: AppColors.textPrimary,
+                          ),
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
                               return 'Please enter a model name';
@@ -711,139 +899,199 @@ class _PhoneCoverTabState extends State<PhoneCoverTab> {
                         ),
                       ),
                     ),
-                  ),
-
-                  if (isChecking) ...[
-                    const SizedBox(height: 16),
-                    const LinearProgressIndicator(),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Use / = or , to separate multiple models',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textTertiary,
+                        fontStyle: FontStyle.italic,
+                      ),
+                    ),
+                    if (isChecking)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 16),
+                        child: LinearProgressIndicator(
+                          backgroundColor: AppColors.primaryBlue,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
+                        ),
+                      ),
                   ],
-
-                  const SizedBox(height: 24),
-
-                  // Buttons
-                  Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: () => Navigator.pop(context),
-                          style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            side: BorderSide(color: Colors.grey.shade300),
-                          ),
-                          child: const Text(
-                            'Cancel',
-                            style: TextStyle(fontSize: 13),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: isChecking
-                              ? null
-                              : () async {
-                                  if (formKey.currentState!.validate()) {
-                                    setSheetState(() => isChecking = true);
-
-                                    final modelName = controller.text.trim();
-                                    final exists = await _isModelNameExists(
-                                      modelName,
-                                      excludeId: cover.id,
-                                    );
-
-                                    if (exists) {
-                                      final duplicateDetails =
-                                          await _getDuplicateDetails(modelName);
-
-                                      setSheetState(() => isChecking = false);
-
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              duplicateDetails,
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                              ),
-                                            ),
-                                            backgroundColor: Colors.orange,
-                                            behavior: SnackBarBehavior.floating,
-                                            duration: const Duration(
-                                              seconds: 4,
-                                            ),
-                                          ),
-                                        );
-                                      }
-                                      return;
-                                    }
-
-                                    try {
-                                      await _coversCollection
-                                          .doc(cover.id)
-                                          .update({
-                                            'modelName': modelName,
-                                            'updatedAt': DateTime.now(),
-                                          });
-
-                                      setSheetState(() => isChecking = false);
-
-                                      if (context.mounted) {
-                                        Navigator.pop(context);
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Updated successfully',
-                                              style: TextStyle(fontSize: 12),
-                                            ),
-                                            backgroundColor: Colors.green,
-                                            behavior: SnackBarBehavior.floating,
-                                          ),
-                                        );
-                                      }
-                                    } catch (e) {
-                                      setSheetState(() => isChecking = false);
-
-                                      if (context.mounted) {
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
-                                          SnackBar(
-                                            content: Text(
-                                              'Error: $e',
-                                              style: TextStyle(fontSize: 12),
-                                            ),
-                                            backgroundColor: Colors.red,
-                                            behavior: SnackBarBehavior.floating,
-                                          ),
-                                        );
-                                      }
-                                    }
-                                  }
-                                },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            textStyle: const TextStyle(fontSize: 13),
-                          ),
-                          child: const Text('Update'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                ],
+                ),
               ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                style: TextButton.styleFrom(
+                  foregroundColor: AppColors.textSecondary,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: Text('Cancel', style: TextStyle(fontSize: 12)),
+              ),
+              ElevatedButton(
+                onPressed: isChecking
+                    ? null
+                    : () async {
+                        if (formKey.currentState!.validate()) {
+                          setDialogState(() => isChecking = true);
+
+                          final modelName = controller.text.trim();
+                          final exists = await _isModelNameExists(
+                            modelName,
+                            excludeId: cover.id,
+                          );
+
+                          if (exists) {
+                            final duplicateDetails = await _getDuplicateDetails(
+                              modelName,
+                            );
+
+                            setDialogState(() => isChecking = false);
+
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.warning,
+                                        size: 18,
+                                        color: Colors.white,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          duplicateDetails,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  backgroundColor: AppColors.warningOrange,
+                                  behavior: SnackBarBehavior.floating,
+                                  duration: const Duration(seconds: 4),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              );
+                            }
+                            return;
+                          }
+
+                          try {
+                            await _coversCollection.doc(cover.id).update({
+                              'modelName': modelName,
+                              'updatedAt': DateTime.now(),
+                            });
+
+                            setDialogState(() => isChecking = false);
+
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.check_circle,
+                                        size: 18,
+                                        color: Colors.white,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      const Expanded(
+                                        child: Text(
+                                          'Updated successfully',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  backgroundColor: AppColors.successGreen,
+                                  behavior: SnackBarBehavior.floating,
+                                  duration: const Duration(seconds: 2),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            setDialogState(() => isChecking = false);
+
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.error,
+                                        size: 18,
+                                        color: Colors.white,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Error: $e',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.white,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  backgroundColor: AppColors.errorRed,
+                                  behavior: SnackBarBehavior.floating,
+                                  duration: const Duration(seconds: 3),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                ),
+                              );
+                            }
+                          }
+                        }
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryBlue,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                child: const Text('Update'),
+              ),
+            ],
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 24,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
             ),
           );
         },
@@ -851,216 +1099,181 @@ class _PhoneCoverTabState extends State<PhoneCoverTab> {
     );
   }
 
-  // New Delete Bottom Sheet
-  void _showDeleteBottomSheet(BuildContext context, PhoneCover cover) {
-    showModalBottomSheet(
+  // Updated Delete Dialog with Confirmation
+  void _showDeleteDialog(BuildContext context, PhoneCover cover) {
+    showDialog(
       context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surfaceWhite,
+        title: Row(
           children: [
-            // Header handle
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: Colors.grey[300],
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Warning Icon
             Container(
-              width: 70,
-              height: 70,
+              padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.1),
-                shape: BoxShape.circle,
+                color: AppColors.errorRed.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
-                Icons.delete_outline,
-                size: 36,
-                color: Colors.red[600],
+                Icons.warning_amber_rounded,
+                color: AppColors.errorRed,
+                size: 20,
               ),
             ),
-            const SizedBox(height: 16),
-
-            // Title
-            const Text(
-              'Delete Phone Cover',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-
-            // Message
+            const SizedBox(width: 12),
             Text(
-              'Are you sure you want to delete this phone cover?',
-              style: TextStyle(fontSize: 13, color: Colors.grey[600]),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 16),
-
-            // Model name
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.red.withOpacity(0.2)),
-              ),
-              child: Column(
-                children: [
-                  const Icon(Icons.phone_android, size: 24, color: Colors.red),
-                  const SizedBox(height: 8),
-                  Text(
-                    cover.modelName,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
+              'Confirm Delete',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
               ),
             ),
-            const SizedBox(height: 8),
-
-            // Warning text
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.orange.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.warning_amber_rounded,
-                    size: 14,
-                    color: Colors.orange[800],
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'This action cannot be undone',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.orange[800],
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Buttons
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      side: BorderSide(color: Colors.grey.shade300),
-                    ),
-                    child: const Text('Cancel', style: TextStyle(fontSize: 13)),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      try {
-                        await _coversCollection.doc(cover.id).delete();
-
-                        if (context.mounted) {
-                          Navigator.pop(context); // Close delete bottom sheet
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Row(
-                                children: [
-                                  Icon(
-                                    Icons.check_circle,
-                                    size: 18,
-                                    color: Colors.white,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      'Phone cover deleted successfully',
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              backgroundColor: Colors.green,
-                              behavior: SnackBarBehavior.floating,
-                              duration: const Duration(seconds: 3),
-                            ),
-                          );
-                        }
-                      } catch (e) {
-                        if (context.mounted) {
-                          Navigator.pop(context); // Close delete bottom sheet
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Row(
-                                children: [
-                                  Icon(
-                                    Icons.error,
-                                    size: 18,
-                                    color: Colors.white,
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    child: Text(
-                                      'Error: ${e.toString()}',
-                                      style: const TextStyle(fontSize: 12),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              backgroundColor: Colors.red,
-                              behavior: SnackBarBehavior.floating,
-                              duration: const Duration(seconds: 4),
-                            ),
-                          );
-                        }
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.red,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      textStyle: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    child: const Text('Delete'),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
           ],
         ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to delete this phone cover?',
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.errorRed.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.errorRed.withOpacity(0.2)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 16, color: AppColors.errorRed),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '"${cover.modelName}"',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This action cannot be undone.',
+              style: TextStyle(
+                fontSize: 12,
+                color: AppColors.textTertiary,
+                fontStyle: FontStyle.italic,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.textSecondary,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text('Cancel', style: TextStyle(fontSize: 12)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              try {
+                await _coversCollection.doc(cover.id).delete();
+
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            size: 18,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Phone cover deleted successfully',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: AppColors.successGreen,
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(seconds: 2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  Navigator.pop(context);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          Icon(Icons.error, size: 18, color: Colors.white),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Error: ${e.toString()}',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: AppColors.errorRed,
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(seconds: 3),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.errorRed,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
     );
   }
@@ -1069,8 +1282,9 @@ class _PhoneCoverTabState extends State<PhoneCoverTab> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      backgroundColor: Colors.transparent,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (context) => CoverDetailsSheet(cover: cover),
     );
@@ -1079,11 +1293,12 @@ class _PhoneCoverTabState extends State<PhoneCoverTab> {
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 }
 
-// Cover List Item Widget (Updated with bottom actions)
+// UPDATED Cover List Item Widget - with improved visibility (same as ScreenGuard)
 class CoverListItem extends StatelessWidget {
   final PhoneCover cover;
   final String searchQuery;
@@ -1127,11 +1342,11 @@ class CoverListItem extends StatelessWidget {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
-      elevation: 1,
-      shadowColor: Colors.grey.withOpacity(0.3),
+      elevation: 2,
+      shadowColor: Colors.black.withOpacity(0.1),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: Colors.grey.shade200, width: 1),
+        side: BorderSide(color: AppColors.borderLight, width: 1),
       ),
       child: InkWell(
         onTap: onTap,
@@ -1141,7 +1356,7 @@ class CoverListItem extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Top row with model parts chips
+              // Model parts chips - improved visibility
               Wrap(
                 spacing: 6,
                 runSpacing: 8,
@@ -1149,31 +1364,29 @@ class CoverListItem extends StatelessWidget {
                   final isMatch = _isPartMatch(part, searchQuery);
                   return Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
+                      horizontal: 12,
+                      vertical: 6,
                     ),
                     decoration: BoxDecoration(
                       color: isMatch
-                          ? Colors.blue.withOpacity(0.15)
-                          : Colors.grey.shade50,
+                          ? AppColors.primaryBlue.withOpacity(0.15)
+                          : AppColors.backgroundLight,
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
                         color: isMatch
-                            ? Colors.blue.shade300
-                            : Colors.grey.shade200,
-                        width: 1,
+                            ? AppColors.primaryBlue.withOpacity(0.3)
+                            : AppColors.borderLight,
+                        width: isMatch ? 1.5 : 1,
                       ),
                     ),
                     child: Text(
                       part.trim(),
                       style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: isMatch
-                            ? FontWeight.w600
-                            : FontWeight.normal,
+                        fontSize: 13,
+                        fontWeight: isMatch ? FontWeight.w600 : FontWeight.w500,
                         color: isMatch
-                            ? Colors.blue.shade700
-                            : Colors.grey.shade700,
+                            ? AppColors.primaryBlue
+                            : AppColors.textPrimary,
                       ),
                     ),
                   );
@@ -1186,57 +1399,51 @@ class CoverListItem extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  // Action buttons
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Edit button
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.blue.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: onEdit,
-                            borderRadius: BorderRadius.circular(8),
-                            child: const Padding(
-                              padding: EdgeInsets.all(8),
-                              child: Icon(
-                                Icons.edit,
-                                size: 16,
-                                color: Colors.blue,
-                              ),
-                            ),
+                  // Edit button - improved visibility
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryBlue.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: onEdit,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Icon(
+                            Icons.edit,
+                            size: 18,
+                            color: AppColors.primaryBlue,
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
 
-                      // Delete button
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: Material(
-                          color: Colors.transparent,
-                          child: InkWell(
-                            onTap: onDelete,
-                            borderRadius: BorderRadius.circular(8),
-                            child: const Padding(
-                              padding: EdgeInsets.all(8),
-                              child: Icon(
-                                Icons.delete_outline,
-                                size: 16,
-                                color: Colors.red,
-                              ),
-                            ),
+                  // Delete button - improved visibility
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.errorRed.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: onDelete,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.all(8),
+                          child: Icon(
+                            Icons.delete_outline,
+                            size: 18,
+                            color: AppColors.errorRed,
                           ),
                         ),
                       ),
-                    ],
+                    ),
                   ),
                 ],
               ),
@@ -1253,7 +1460,7 @@ class CoverListItem extends StatelessWidget {
   }
 }
 
-// Cover Details Bottom Sheet
+// Cover Details Bottom Sheet - improved visibility (same as ScreenGuard)
 class CoverDetailsSheet extends StatelessWidget {
   final PhoneCover cover;
 
@@ -1273,27 +1480,31 @@ class CoverDetailsSheet extends StatelessWidget {
     final modelParts = _splitByDelimiters(cover.modelName);
 
     return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surfaceWhite,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       padding: const EdgeInsets.all(20),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Header handle
+          // Header handle - improved visibility
           Container(
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.grey[300],
+              color: AppColors.textTertiary.withOpacity(0.3),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
 
-          // Icon
+          // Icon with better contrast
           Container(
             width: 70,
             height: 70,
             decoration: BoxDecoration(
-              color: Colors.blue.withOpacity(0.1),
+              color: AppColors.primaryBlue.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
             child: Center(
@@ -1301,22 +1512,17 @@ class CoverDetailsSheet extends StatelessWidget {
                 cover.modelName.isNotEmpty
                     ? cover.modelName[0].toUpperCase()
                     : '?',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
-                  color: Colors.blue,
+                  color: AppColors.primaryBlue,
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
 
-          // Title with parts
-          Text(
-            'Model Name',
-            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
-          ),
-          const SizedBox(height: 8),
+          // Title with parts - improved contrast
           Wrap(
             spacing: 6,
             runSpacing: 6,
@@ -1328,28 +1534,30 @@ class CoverDetailsSheet extends StatelessWidget {
                   vertical: 6,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
+                  color: AppColors.backgroundLight,
                   borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(color: AppColors.borderLight),
                 ),
                 child: Text(
                   part.trim(),
-                  style: const TextStyle(
-                    fontSize: 13,
+                  style: TextStyle(
+                    fontSize: 14,
                     fontWeight: FontWeight.w500,
+                    color: AppColors.textPrimary,
                   ),
                 ),
               );
             }).toList(),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
 
-          // Details
+          // Details section - improved readability
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.grey[50],
+              color: AppColors.backgroundLight,
               borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.borderLight),
             ),
             child: Column(
               children: [
@@ -1357,36 +1565,44 @@ class CoverDetailsSheet extends StatelessWidget {
                   'Created',
                   DateFormat('MMM dd, yyyy · hh:mm a').format(cover.createdAt),
                 ),
-                const Divider(height: 16),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Divider(height: 1),
+                ),
                 _buildInfoRow(
                   'Last Updated',
                   DateFormat('MMM dd, yyyy · hh:mm a').format(cover.updatedAt),
                 ),
-                const Divider(height: 16),
-                _buildInfoRow('Document ID', '${cover.id.substring(0, 8)}...'),
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Divider(height: 1),
+                ),
+                _buildInfoRow('ID', '${cover.id.substring(0, 8)}...'),
               ],
             ),
           ),
           const SizedBox(height: 20),
 
-          // Close button
+          // Close button - improved visibility
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () => Navigator.pop(context),
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue,
+                backgroundColor: AppColors.primaryBlue,
                 foregroundColor: Colors.white,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 14),
-                textStyle: const TextStyle(fontSize: 13),
+                textStyle: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               child: const Text('Close'),
             ),
           ),
-          const SizedBox(height: 20),
         ],
       ),
     );
@@ -1396,10 +1612,21 @@ class CoverDetailsSheet extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: TextStyle(fontSize: 12, color: Colors.grey[600])),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
         Text(
           value,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+          style: TextStyle(
+            fontSize: 13,
+            color: AppColors.textPrimary,
+            fontWeight: FontWeight.w500,
+          ),
         ),
       ],
     );
