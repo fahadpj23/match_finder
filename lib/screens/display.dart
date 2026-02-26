@@ -43,6 +43,16 @@ class _DisplayTabState extends State<DisplayTab> {
   String _searchQuery = '';
   List<Display> _allDisplays = [];
 
+  // Helper method to split text by multiple delimiters
+  List<String> _splitByDelimiters(String text) {
+    // Split by '/', '=', ',' and trim each part
+    return text
+        .split(RegExp(r'[/=,]'))
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+  }
+
   // Helper method to normalize text (remove spaces, special characters and convert to lowercase)
   String _normalizeText(String text) {
     return text
@@ -50,7 +60,9 @@ class _DisplayTabState extends State<DisplayTab> {
         .replaceAll(' ', '')
         .replaceAll('-', '')
         .replaceAll('_', '')
-        .replaceAll('/', '');
+        .replaceAll('/', '')
+        .replaceAll('=', '')
+        .replaceAll(',', '');
   }
 
   // Enhanced duplicate checking with better edge case handling
@@ -58,12 +70,8 @@ class _DisplayTabState extends State<DisplayTab> {
     String displayName, {
     String? excludeId,
   }) async {
-    // Get all display parts from the new input
-    final newDisplayParts = displayName
-        .split('/')
-        .map((part) => part.trim())
-        .where((part) => part.isNotEmpty)
-        .toList();
+    // Get all display parts from the new input using multiple delimiters
+    final newDisplayParts = _splitByDelimiters(displayName);
 
     final normalizedNewParts = newDisplayParts
         .map((part) => _normalizeText(part))
@@ -84,12 +92,10 @@ class _DisplayTabState extends State<DisplayTab> {
         continue;
       }
 
-      // Get existing display parts
-      final existingDisplayParts = existingDisplay.displayName
-          .split('/')
-          .map((part) => part.trim())
-          .where((part) => part.isNotEmpty)
-          .toList();
+      // Get existing display parts using multiple delimiters
+      final existingDisplayParts = _splitByDelimiters(
+        existingDisplay.displayName,
+      );
 
       final normalizedExistingParts = existingDisplayParts
           .map((part) => _normalizeText(part))
@@ -147,11 +153,7 @@ class _DisplayTabState extends State<DisplayTab> {
 
   // Get duplicate details for better error message
   Future<String> _getDuplicateDetails(String displayName) async {
-    final newDisplayParts = displayName
-        .split('/')
-        .map((part) => part.trim())
-        .where((part) => part.isNotEmpty)
-        .toList();
+    final newDisplayParts = _splitByDelimiters(displayName);
 
     final normalizedNewParts = newDisplayParts
         .map((part) => _normalizeText(part))
@@ -162,11 +164,9 @@ class _DisplayTabState extends State<DisplayTab> {
     for (var doc in snapshot.docs) {
       final existingDisplay = Display.fromFirestore(doc);
 
-      final existingDisplayParts = existingDisplay.displayName
-          .split('/')
-          .map((part) => part.trim())
-          .where((part) => part.isNotEmpty)
-          .toList();
+      final existingDisplayParts = _splitByDelimiters(
+        existingDisplay.displayName,
+      );
 
       final normalizedExistingParts = existingDisplayParts
           .map((part) => _normalizeText(part))
@@ -330,7 +330,7 @@ class _DisplayTabState extends State<DisplayTab> {
                 String normalizedQuery = _normalizeText(_searchQuery);
 
                 // Check if any part of the display name matches
-                var parts = display.displayName.split('/');
+                var parts = _splitByDelimiters(display.displayName);
                 for (var part in parts) {
                   if (_normalizeText(part).contains(normalizedQuery)) {
                     return true;
@@ -421,7 +421,7 @@ class _DisplayTabState extends State<DisplayTab> {
                         labelText: 'Display Name',
                         labelStyle: const TextStyle(fontSize: 12),
                         hintText:
-                            'Enter display name (use / to separate multiple displays)',
+                            'Enter display name (use / = or , to separate multiple displays)',
                         hintStyle: const TextStyle(fontSize: 11),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -564,49 +564,59 @@ class _DisplayTabState extends State<DisplayTab> {
               'Edit Display',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
-            content: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 400,
-                    child: TextFormField(
-                      controller: controller,
-                      decoration: InputDecoration(
-                        labelText: 'Display Name',
-                        labelStyle: const TextStyle(fontSize: 12),
-                        hintText:
-                            'Enter display name (use / to separate multiple displays)',
-                        hintStyle: const TextStyle(fontSize: 11),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey[50],
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
+            content: Container(
+              width: MediaQuery.of(context).size.width * 0.9,
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.5,
+              ),
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: TextFormField(
+                          controller: controller,
+                          decoration: InputDecoration(
+                            labelText: 'Display Name',
+                            labelStyle: const TextStyle(fontSize: 12),
+                            hintText:
+                                'Enter display name (use / = or , to separate multiple displays)',
+                            hintStyle: const TextStyle(fontSize: 11),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[50],
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                            alignLabelWithHint: true,
+                          ),
+                          style: const TextStyle(fontSize: 13),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please enter a display name';
+                            }
+                            return null;
+                          },
+                          autofocus: true,
+                          maxLines: null,
+                          keyboardType: TextInputType.multiline,
+                          textInputAction: TextInputAction.done,
                         ),
                       ),
-                      style: const TextStyle(fontSize: 13),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Please enter a display name';
-                        }
-                        return null;
-                      },
-                      autofocus: true,
-                      maxLines: 2,
-                      minLines: 1,
                     ),
-                  ),
-                  if (isChecking)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 16),
-                      child: LinearProgressIndicator(),
-                    ),
-                ],
+                    if (isChecking)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 16),
+                        child: LinearProgressIndicator(),
+                      ),
+                  ],
+                ),
               ),
             ),
             actions: [
@@ -697,6 +707,10 @@ class _DisplayTabState extends State<DisplayTab> {
                 child: const Text('Update'),
               ),
             ],
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 24,
+            ),
           );
         },
       ),
@@ -884,10 +898,30 @@ class DisplayListItem extends StatelessWidget {
     required this.onDelete,
   });
 
+  // Helper method to split by multiple delimiters
+  List<String> _splitByDelimiters(String text) {
+    return text
+        .split(RegExp(r'[/=,]'))
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+  }
+
+  String _normalizeText(String text) {
+    return text
+        .toLowerCase()
+        .replaceAll(' ', '')
+        .replaceAll('-', '')
+        .replaceAll('_', '')
+        .replaceAll('/', '')
+        .replaceAll('=', '')
+        .replaceAll(',', '');
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Split the display name by "/"
-    final displayParts = display.displayName.split('/');
+    // Split the display name by multiple delimiters
+    final displayParts = _splitByDelimiters(display.displayName);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -905,51 +939,43 @@ class DisplayListItem extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Top row with icon and display chips
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Display parts chips - Expanded to take remaining space
-                  Expanded(
-                    child: Wrap(
-                      spacing: 6,
-                      runSpacing: 8,
-                      children: displayParts.map((part) {
-                        final isMatch = _isPartMatch(part, searchQuery);
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isMatch
-                                ? Colors.blue.withOpacity(0.15)
-                                : Colors.grey.shade50,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isMatch
-                                  ? Colors.blue.shade300
-                                  : Colors.grey.shade200,
-                              width: 1,
-                            ),
-                          ),
-                          child: Text(
-                            part.trim(),
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: isMatch
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                              color: isMatch
-                                  ? Colors.blue.shade700
-                                  : Colors.grey.shade700,
-                            ),
-                          ),
-                        );
-                      }).toList(),
+              // Display parts chips
+              Wrap(
+                spacing: 6,
+                runSpacing: 8,
+                children: displayParts.map((part) {
+                  final isMatch = _isPartMatch(part, searchQuery);
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
                     ),
-                  ),
-                ],
+                    decoration: BoxDecoration(
+                      color: isMatch
+                          ? Colors.blue.withOpacity(0.15)
+                          : Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isMatch
+                            ? Colors.blue.shade300
+                            : Colors.grey.shade200,
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      part.trim(),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: isMatch
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                        color: isMatch
+                            ? Colors.blue.shade700
+                            : Colors.grey.shade700,
+                      ),
+                    ),
+                  );
+                }).toList(),
               ),
 
               const SizedBox(height: 16),
@@ -1011,12 +1037,7 @@ class DisplayListItem extends StatelessWidget {
 
   bool _isPartMatch(String part, String query) {
     if (query.isEmpty) return false;
-
-    String normalize(String text) {
-      return text.toLowerCase().replaceAll(' ', '');
-    }
-
-    return normalize(part).contains(normalize(query));
+    return _normalizeText(part).contains(_normalizeText(query));
   }
 }
 
@@ -1026,9 +1047,18 @@ class DisplayDetailsSheet extends StatelessWidget {
 
   const DisplayDetailsSheet({super.key, required this.display});
 
+  // Helper method to split by multiple delimiters
+  List<String> _splitByDelimiters(String text) {
+    return text
+        .split(RegExp(r'[/=,]'))
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final displayParts = display.displayName.split('/');
+    final displayParts = _splitByDelimiters(display.displayName);
 
     return Container(
       padding: const EdgeInsets.all(20),

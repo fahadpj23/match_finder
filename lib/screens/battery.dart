@@ -43,6 +43,16 @@ class _BatteryTabState extends State<BatteryTab> {
   String _searchQuery = '';
   List<Battery> _allBatteries = [];
 
+  // Helper method to split text by multiple delimiters
+  List<String> _splitByDelimiters(String text) {
+    // Split by '/', '=', ',' and trim each part
+    return text
+        .split(RegExp(r'[/=,]'))
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+  }
+
   // Helper method to normalize text (remove spaces, special characters and convert to lowercase)
   String _normalizeText(String text) {
     return text
@@ -50,17 +60,15 @@ class _BatteryTabState extends State<BatteryTab> {
         .replaceAll(' ', '')
         .replaceAll('-', '')
         .replaceAll('_', '')
-        .replaceAll('/', '');
+        .replaceAll('/', '')
+        .replaceAll('=', '')
+        .replaceAll(',', '');
   }
 
   // Enhanced duplicate checking with better edge case handling
   Future<bool> _isModelNameExists(String modelName, {String? excludeId}) async {
-    // Get all model parts from the new input
-    final newModelParts = modelName
-        .split('/')
-        .map((part) => part.trim())
-        .where((part) => part.isNotEmpty)
-        .toList();
+    // Get all model parts from the new input using multiple delimiters
+    final newModelParts = _splitByDelimiters(modelName);
 
     final normalizedNewParts = newModelParts
         .map((part) => _normalizeText(part))
@@ -81,12 +89,8 @@ class _BatteryTabState extends State<BatteryTab> {
         continue;
       }
 
-      // Get existing model parts
-      final existingModelParts = existingBattery.modelName
-          .split('/')
-          .map((part) => part.trim())
-          .where((part) => part.isNotEmpty)
-          .toList();
+      // Get existing model parts using multiple delimiters
+      final existingModelParts = _splitByDelimiters(existingBattery.modelName);
 
       final normalizedExistingParts = existingModelParts
           .map((part) => _normalizeText(part))
@@ -178,11 +182,7 @@ class _BatteryTabState extends State<BatteryTab> {
 
   // Get duplicate details for better error message
   Future<String> _getDuplicateDetails(String modelName) async {
-    final newModelParts = modelName
-        .split('/')
-        .map((part) => part.trim())
-        .where((part) => part.isNotEmpty)
-        .toList();
+    final newModelParts = _splitByDelimiters(modelName);
 
     final normalizedNewParts = newModelParts
         .map((part) => _normalizeText(part))
@@ -193,11 +193,7 @@ class _BatteryTabState extends State<BatteryTab> {
     for (var doc in snapshot.docs) {
       final existingBattery = Battery.fromFirestore(doc);
 
-      final existingModelParts = existingBattery.modelName
-          .split('/')
-          .map((part) => part.trim())
-          .where((part) => part.isNotEmpty)
-          .toList();
+      final existingModelParts = _splitByDelimiters(existingBattery.modelName);
 
       final normalizedExistingParts = existingModelParts
           .map((part) => _normalizeText(part))
@@ -388,7 +384,7 @@ class _BatteryTabState extends State<BatteryTab> {
                 String normalizedQuery = _normalizeText(_searchQuery);
 
                 // Check if any part of the model name matches
-                var parts = battery.modelName.split('/');
+                var parts = _splitByDelimiters(battery.modelName);
                 for (var part in parts) {
                   if (_normalizeText(part).contains(normalizedQuery)) {
                     return true;
@@ -483,7 +479,7 @@ class _BatteryTabState extends State<BatteryTab> {
                         labelText: 'Model Name',
                         labelStyle: const TextStyle(fontSize: 12),
                         hintText:
-                            'Enter model name (use / to separate multiple models)',
+                            'Enter model name (use / = or , to separate multiple models)',
                         hintStyle: const TextStyle(fontSize: 11),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -610,6 +606,7 @@ class _BatteryTabState extends State<BatteryTab> {
   }
 
   // Edit Bottom Sheet
+  // Fixed Edit Bottom Sheet with proper keyboard handling
   void _showEditBottomSheet(BuildContext context, Battery battery) {
     final TextEditingController controller = TextEditingController(
       text: battery.modelName,
@@ -628,217 +625,230 @@ class _BatteryTabState extends State<BatteryTab> {
           return Padding(
             padding: EdgeInsets.only(
               bottom: MediaQuery.of(context).viewInsets.bottom,
-              left: 20,
-              right: 20,
-              top: 20,
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header handle
-                Center(
-                  child: Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: Colors.grey[300],
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 20),
-
-                // Title
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Header handle
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
                       decoration: BoxDecoration(
-                        color: Colors.green.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.edit,
-                        size: 18,
-                        color: Colors.green,
+                        color: Colors.grey[300],
+                        borderRadius: BorderRadius.circular(2),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    const Text(
-                      'Edit Battery Model',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-
-                // Form
-                Form(
-                  key: formKey,
-                  child: TextFormField(
-                    controller: controller,
-                    decoration: InputDecoration(
-                      labelText: 'Model Name',
-                      labelStyle: const TextStyle(fontSize: 12),
-                      hintText:
-                          'Enter model name (use / to separate multiple models)',
-                      hintStyle: const TextStyle(fontSize: 11),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey[50],
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 14,
-                      ),
-                      prefixIcon: const Icon(Icons.battery_full, size: 18),
-                    ),
-                    style: const TextStyle(fontSize: 13),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter a model name';
-                      }
-                      return null;
-                    },
-                    autofocus: true,
-                    maxLines: 2,
-                    minLines: 1,
                   ),
-                ),
+                  const SizedBox(height: 20),
 
-                if (isChecking) ...[
-                  const SizedBox(height: 16),
-                  const LinearProgressIndicator(),
-                ],
-
-                const SizedBox(height: 24),
-
-                // Buttons
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          side: BorderSide(color: Colors.grey.shade300),
+                  // Title
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Text(
-                          'Cancel',
-                          style: TextStyle(fontSize: 13),
+                        child: const Icon(
+                          Icons.edit,
+                          size: 18,
+                          color: Colors.green,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      const Text(
+                        'Edit Battery Model',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Form with properly sized text field
+                  Form(
+                    key: formKey,
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 0.4,
+                      ),
+                      child: SingleChildScrollView(
+                        child: TextFormField(
+                          controller: controller,
+                          decoration: InputDecoration(
+                            labelText: 'Model Name',
+                            labelStyle: const TextStyle(fontSize: 12),
+                            hintText:
+                                'Enter model name (use / = or , to separate multiple models)',
+                            hintStyle: const TextStyle(fontSize: 11),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[50],
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                            prefixIcon: const Icon(
+                              Icons.battery_full,
+                              size: 18,
+                            ),
+                          ),
+                          style: const TextStyle(fontSize: 13),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please enter a model name';
+                            }
+                            return null;
+                          },
+                          autofocus: true,
+                          maxLines: null,
+                          keyboardType: TextInputType.multiline,
+                          textInputAction: TextInputAction.done,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: isChecking
-                            ? null
-                            : () async {
-                                if (formKey.currentState!.validate()) {
-                                  setSheetState(() => isChecking = true);
+                  ),
 
-                                  final modelName = controller.text.trim();
-                                  final exists = await _isModelNameExists(
-                                    modelName,
-                                    excludeId: battery.id,
-                                  );
+                  if (isChecking) ...[
+                    const SizedBox(height: 16),
+                    const LinearProgressIndicator(),
+                  ],
 
-                                  if (exists) {
-                                    final duplicateDetails =
-                                        await _getDuplicateDetails(modelName);
+                  const SizedBox(height: 24),
 
-                                    setSheetState(() => isChecking = false);
+                  // Buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            side: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          child: const Text(
+                            'Cancel',
+                            style: TextStyle(fontSize: 13),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: isChecking
+                              ? null
+                              : () async {
+                                  if (formKey.currentState!.validate()) {
+                                    setSheetState(() => isChecking = true);
 
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            duplicateDetails,
-                                            style: const TextStyle(
-                                              fontSize: 12,
+                                    final modelName = controller.text.trim();
+                                    final exists = await _isModelNameExists(
+                                      modelName,
+                                      excludeId: battery.id,
+                                    );
+
+                                    if (exists) {
+                                      final duplicateDetails =
+                                          await _getDuplicateDetails(modelName);
+
+                                      setSheetState(() => isChecking = false);
+
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              duplicateDetails,
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                              ),
+                                            ),
+                                            backgroundColor: Colors.orange,
+                                            behavior: SnackBarBehavior.floating,
+                                            duration: const Duration(
+                                              seconds: 4,
                                             ),
                                           ),
-                                          backgroundColor: Colors.orange,
-                                          behavior: SnackBarBehavior.floating,
-                                          duration: const Duration(seconds: 4),
-                                        ),
-                                      );
+                                        );
+                                      }
+                                      return;
                                     }
-                                    return;
-                                  }
 
-                                  try {
-                                    await _batteryCollection
-                                        .doc(battery.id)
-                                        .update({
-                                          'modelName': modelName,
-                                          'updatedAt': DateTime.now(),
-                                        });
+                                    try {
+                                      await _batteryCollection
+                                          .doc(battery.id)
+                                          .update({
+                                            'modelName': modelName,
+                                            'updatedAt': DateTime.now(),
+                                          });
 
-                                    setSheetState(() => isChecking = false);
+                                      setSheetState(() => isChecking = false);
 
-                                    if (context.mounted) {
-                                      Navigator.pop(context);
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            'Updated successfully',
-                                            style: TextStyle(fontSize: 12),
+                                      if (context.mounted) {
+                                        Navigator.pop(context);
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Updated successfully',
+                                              style: TextStyle(fontSize: 12),
+                                            ),
+                                            backgroundColor: Colors.green,
+                                            behavior: SnackBarBehavior.floating,
                                           ),
-                                          backgroundColor: Colors.green,
-                                          behavior: SnackBarBehavior.floating,
-                                        ),
-                                      );
-                                    }
-                                  } catch (e) {
-                                    setSheetState(() => isChecking = false);
+                                        );
+                                      }
+                                    } catch (e) {
+                                      setSheetState(() => isChecking = false);
 
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        SnackBar(
-                                          content: Text(
-                                            'Error: $e',
-                                            style: TextStyle(fontSize: 12),
+                                      if (context.mounted) {
+                                        ScaffoldMessenger.of(
+                                          context,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'Error: $e',
+                                              style: TextStyle(fontSize: 12),
+                                            ),
+                                            backgroundColor: Colors.red,
+                                            behavior: SnackBarBehavior.floating,
                                           ),
-                                          backgroundColor: Colors.red,
-                                          behavior: SnackBarBehavior.floating,
-                                        ),
-                                      );
+                                        );
+                                      }
                                     }
                                   }
-                                }
-                              },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.green,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            textStyle: const TextStyle(fontSize: 13),
                           ),
-                          textStyle: const TextStyle(fontSize: 13),
+                          child: const Text('Update'),
                         ),
-                        child: const Text('Update'),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 20),
-              ],
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
             ),
           );
         },
@@ -1095,10 +1105,30 @@ class BatteryListItem extends StatelessWidget {
     required this.onDelete,
   });
 
+  // Helper method to split by multiple delimiters
+  List<String> _splitByDelimiters(String text) {
+    return text
+        .split(RegExp(r'[/=,]'))
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+  }
+
+  String _normalizeText(String text) {
+    return text
+        .toLowerCase()
+        .replaceAll(' ', '')
+        .replaceAll('-', '')
+        .replaceAll('_', '')
+        .replaceAll('/', '')
+        .replaceAll('=', '')
+        .replaceAll(',', '');
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Split the model name by "/"
-    final modelParts = battery.modelName.split('/');
+    // Split the model name by multiple delimiters
+    final modelParts = _splitByDelimiters(battery.modelName);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -1116,55 +1146,48 @@ class BatteryListItem extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Top row with icon and content
-              Row(
-                children: [
-                  // Model parts chips - Expanded to take remaining space
-                  Expanded(
-                    child: Wrap(
-                      spacing: 6,
-                      runSpacing: 8,
-                      children: modelParts.map((part) {
-                        final isMatch = _isPartMatch(part, searchQuery);
-                        return Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: isMatch
-                                ? Colors.green.withOpacity(0.15)
-                                : Colors.grey.shade50,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: isMatch
-                                  ? Colors.green.shade300
-                                  : Colors.grey.shade200,
-                              width: 1,
-                            ),
-                          ),
-                          child: Text(
-                            part.trim(),
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: isMatch
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                              color: isMatch
-                                  ? Colors.green.shade700
-                                  : Colors.grey.shade700,
-                            ),
-                          ),
-                        );
-                      }).toList(),
+              // Model parts chips
+              Wrap(
+                spacing: 6,
+                runSpacing: 8,
+                children: modelParts.map((part) {
+                  final isMatch = _isPartMatch(part, searchQuery);
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
                     ),
-                  ),
-                ],
+                    decoration: BoxDecoration(
+                      color: isMatch
+                          ? Colors.green.withOpacity(0.15)
+                          : Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isMatch
+                            ? Colors.green.shade300
+                            : Colors.grey.shade200,
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      part.trim(),
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: isMatch
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                        color: isMatch
+                            ? Colors.green.shade700
+                            : Colors.grey.shade700,
+                      ),
+                    ),
+                  );
+                }).toList(),
               ),
 
               const SizedBox(height: 16),
 
-              // Bottom row with date and action buttons
+              // Bottom row with action buttons
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -1231,12 +1254,7 @@ class BatteryListItem extends StatelessWidget {
 
   bool _isPartMatch(String part, String query) {
     if (query.isEmpty) return false;
-
-    String normalize(String text) {
-      return text.toLowerCase().replaceAll(' ', '');
-    }
-
-    return normalize(part).contains(normalize(query));
+    return _normalizeText(part).contains(_normalizeText(query));
   }
 }
 
@@ -1246,9 +1264,18 @@ class BatteryDetailsSheet extends StatelessWidget {
 
   const BatteryDetailsSheet({super.key, required this.battery});
 
+  // Helper method to split by multiple delimiters
+  List<String> _splitByDelimiters(String text) {
+    return text
+        .split(RegExp(r'[/=,]'))
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final modelParts = battery.modelName.split('/');
+    final modelParts = _splitByDelimiters(battery.modelName);
 
     return Container(
       padding: const EdgeInsets.all(20),

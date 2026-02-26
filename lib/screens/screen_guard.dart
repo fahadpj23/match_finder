@@ -43,6 +43,16 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
   String _searchQuery = '';
   List<ScreenGuard> _allGuards = [];
 
+  // Helper method to split text by multiple delimiters
+  List<String> _splitByDelimiters(String text) {
+    // Split by '/', '=', ',' and trim each part
+    return text
+        .split(RegExp(r'[/=,]'))
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+  }
+
   // Helper method to normalize text (remove spaces, special characters and convert to lowercase)
   String _normalizeText(String text) {
     return text
@@ -50,17 +60,15 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
         .replaceAll(' ', '')
         .replaceAll('-', '')
         .replaceAll('_', '')
-        .replaceAll('/', '');
+        .replaceAll('/', '')
+        .replaceAll('=', '')
+        .replaceAll(',', '');
   }
 
   // Enhanced duplicate checking with better edge case handling
   Future<bool> _isModelNameExists(String modelName, {String? excludeId}) async {
-    // Get all model parts from the new input
-    final newModelParts = modelName
-        .split('/')
-        .map((part) => part.trim())
-        .where((part) => part.isNotEmpty)
-        .toList();
+    // Get all model parts from the new input using multiple delimiters
+    final newModelParts = _splitByDelimiters(modelName);
 
     final normalizedNewParts = newModelParts
         .map((part) => _normalizeText(part))
@@ -81,12 +89,8 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
         continue;
       }
 
-      // Get existing model parts
-      final existingModelParts = existingGuard.modelName
-          .split('/')
-          .map((part) => part.trim())
-          .where((part) => part.isNotEmpty)
-          .toList();
+      // Get existing model parts using multiple delimiters
+      final existingModelParts = _splitByDelimiters(existingGuard.modelName);
 
       final normalizedExistingParts = existingModelParts
           .map((part) => _normalizeText(part))
@@ -144,11 +148,7 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
 
   // Get duplicate details for better error message
   Future<String> _getDuplicateDetails(String modelName) async {
-    final newModelParts = modelName
-        .split('/')
-        .map((part) => part.trim())
-        .where((part) => part.isNotEmpty)
-        .toList();
+    final newModelParts = _splitByDelimiters(modelName);
 
     final normalizedNewParts = newModelParts
         .map((part) => _normalizeText(part))
@@ -159,11 +159,7 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
     for (var doc in snapshot.docs) {
       final existingGuard = ScreenGuard.fromFirestore(doc);
 
-      final existingModelParts = existingGuard.modelName
-          .split('/')
-          .map((part) => part.trim())
-          .where((part) => part.isNotEmpty)
-          .toList();
+      final existingModelParts = _splitByDelimiters(existingGuard.modelName);
 
       final normalizedExistingParts = existingModelParts
           .map((part) => _normalizeText(part))
@@ -327,7 +323,7 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
                 String normalizedQuery = _normalizeText(_searchQuery);
 
                 // Check if any part of the model name matches
-                var parts = guard.modelName.split('/');
+                var parts = _splitByDelimiters(guard.modelName);
                 for (var part in parts) {
                   if (_normalizeText(part).contains(normalizedQuery)) {
                     return true;
@@ -418,7 +414,7 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
                         labelText: 'Model Name',
                         labelStyle: const TextStyle(fontSize: 12),
                         hintText:
-                            'Enter model name (use / to separate multiple models)',
+                            'Enter model name (use / = or , to separate multiple models)',
                         hintStyle: const TextStyle(fontSize: 11),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -559,49 +555,59 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
               'Edit Screen Guard',
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
-            content: Form(
-              key: formKey,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 400,
-                    child: TextFormField(
-                      controller: controller,
-                      decoration: InputDecoration(
-                        labelText: 'Model Name',
-                        labelStyle: const TextStyle(fontSize: 12),
-                        hintText:
-                            'Enter model name (use / to separate multiple models)',
-                        hintStyle: const TextStyle(fontSize: 11),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey[50],
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
+            content: Container(
+              width: MediaQuery.of(context).size.width * 0.9,
+              constraints: BoxConstraints(
+                maxHeight:
+                    MediaQuery.of(context).size.height * 0.5, // Limit height
+              ),
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: SingleChildScrollView(
+                        child: TextFormField(
+                          controller: controller,
+                          decoration: InputDecoration(
+                            labelText: 'Model Name',
+                            labelStyle: const TextStyle(fontSize: 12),
+                            hintText:
+                                'Enter model name (use / = or , to separate multiple models)',
+                            hintStyle: const TextStyle(fontSize: 11),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[50],
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                          ),
+                          style: const TextStyle(fontSize: 13),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return 'Please enter a model name';
+                            }
+                            return null;
+                          },
+                          autofocus: true,
+                          maxLines: null, // Allows unlimited lines
+                          keyboardType: TextInputType.multiline,
+                          textInputAction: TextInputAction.done,
                         ),
                       ),
-                      style: const TextStyle(fontSize: 13),
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Please enter a model name';
-                        }
-                        return null;
-                      },
-                      autofocus: true,
-                      maxLines: 2,
-                      minLines: 1,
                     ),
-                  ),
-                  if (isChecking)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 16),
-                      child: LinearProgressIndicator(),
-                    ),
-                ],
+                    if (isChecking)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 16),
+                        child: LinearProgressIndicator(),
+                      ),
+                  ],
+                ),
               ),
             ),
             actions: [
@@ -692,6 +698,10 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
                 child: const Text('Update'),
               ),
             ],
+            insetPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 24,
+            ),
           );
         },
       ),
@@ -880,10 +890,30 @@ class GuardListItem extends StatelessWidget {
     required this.onDelete,
   });
 
+  // Helper method to split by multiple delimiters
+  List<String> _splitByDelimiters(String text) {
+    return text
+        .split(RegExp(r'[/=,]'))
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+  }
+
+  String _normalizeText(String text) {
+    return text
+        .toLowerCase()
+        .replaceAll(' ', '')
+        .replaceAll('-', '')
+        .replaceAll('_', '')
+        .replaceAll('/', '')
+        .replaceAll('=', '')
+        .replaceAll(',', '');
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Split the model name by "/"
-    final modelParts = guard.modelName.split('/');
+    // Split the model name by multiple delimiters
+    final modelParts = _splitByDelimiters(guard.modelName);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
@@ -905,8 +935,6 @@ class GuardListItem extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Icon/Initial
-
                   // Model parts chips - Expanded to take remaining space
                   Expanded(
                     child: Wrap(
@@ -952,12 +980,10 @@ class GuardListItem extends StatelessWidget {
 
               const SizedBox(height: 16),
 
-              // Bottom row with date and action buttons
+              // Bottom row with action buttons
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                  // Created date
-
                   // Action buttons
                   Row(
                     mainAxisSize: MainAxisSize.min,
@@ -1021,12 +1047,7 @@ class GuardListItem extends StatelessWidget {
 
   bool _isPartMatch(String part, String query) {
     if (query.isEmpty) return false;
-
-    String normalize(String text) {
-      return text.toLowerCase().replaceAll(' ', '');
-    }
-
-    return normalize(part).contains(normalize(query));
+    return _normalizeText(part).contains(_normalizeText(query));
   }
 }
 
@@ -1036,9 +1057,18 @@ class GuardDetailsSheet extends StatelessWidget {
 
   const GuardDetailsSheet({super.key, required this.guard});
 
+  // Helper method to split by multiple delimiters
+  List<String> _splitByDelimiters(String text) {
+    return text
+        .split(RegExp(r'[/=,]'))
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final modelParts = guard.modelName.split('/');
+    final modelParts = _splitByDelimiters(guard.modelName);
 
     return Container(
       padding: const EdgeInsets.all(20),
