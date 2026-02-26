@@ -2,7 +2,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:match_finder/screens/battery.dart';
 import 'package:match_finder/screens/display.dart';
-
 import 'package:match_finder/screens/phone_cover.dart';
 import 'package:match_finder/screens/screen_guard.dart';
 
@@ -31,9 +30,9 @@ class MyApp extends StatelessWidget {
       title: 'Match Finder',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        primaryColor: Colors.blue,
+        primaryColor: const Color(0xFF2563EB),
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.blue,
+          seedColor: const Color(0xFF2563EB),
           brightness: Brightness.light,
         ),
         useMaterial3: true,
@@ -41,9 +40,14 @@ class MyApp extends StatelessWidget {
           elevation: 0,
           centerTitle: true,
           backgroundColor: Colors.white,
-          foregroundColor: Colors.black87,
+          foregroundColor: Color(0xFF1F2937),
         ),
-        // Removed cardTheme to fix the error
+        cardTheme: const CardThemeData(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(20)),
+          ),
+        ),
       ),
       home: const HomeScreen(),
     );
@@ -53,182 +57,185 @@ class MyApp extends StatelessWidget {
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
-  void _navigateToScreen(BuildContext context, Widget screen, String title) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => Scaffold(
-          appBar: AppBar(
-            title: Text(title),
-            leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ),
-          body: screen,
-        ),
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[50],
+      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
         title: const Text(
           'Match Finder',
-          style: TextStyle(fontWeight: FontWeight.w600),
+          style: TextStyle(fontSize: 18), // Decreased from default
         ),
+        centerTitle: false,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 16),
-
-            // Grid of modules
-            Expanded(
-              child: GridView.count(
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16), // Reduced from 20
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Simple header
+              const Text(
+                'Categories',
+                style: TextStyle(
+                  fontSize: 20, // Decreased from 24
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF1F2937),
+                ),
+              ),
+              const SizedBox(height: 2), // Reduced from 4
+              Text(
+                'Select a category to manage',
+                style: TextStyle(
+                  fontSize: 12, // Decreased from 14
+                  color: Colors.grey[600],
+                ),
+              ),
+              const SizedBox(height: 16), // Reduced from 24
+              // Categories grid
+              GridView.count(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
                 crossAxisCount: 2,
-                crossAxisSpacing: 16,
-                mainAxisSpacing: 16,
-                childAspectRatio: 1.1,
+                crossAxisSpacing: 12, // Reduced from 16
+                mainAxisSpacing: 12, // Reduced from 16
+                childAspectRatio: 1,
                 children: [
-                  _buildModuleCard(
+                  _buildCategoryCard(
                     context,
-                    icon: Icons.phone_android_rounded,
+                    icon: Icons.shield_rounded,
                     title: 'Screen Guard',
-                    color: Colors.blue,
-                    onTap: () => _navigateToScreen(
-                      context,
-                      const ScreenGuardTab(),
-                      'Screen Guard',
-                    ),
+                    color: const Color(0xFF2563EB),
+                    screen: const ScreenGuardTab(),
                   ),
-                  _buildModuleCard(
+                  _buildCategoryCard(
                     context,
-                    icon: Icons
-                        .phone_android_rounded, // More specific for phone cover
+                    icon: Icons.phone_iphone_rounded,
                     title: 'Phone Cover',
-                    color: Colors.green,
-                    onTap: () => _navigateToScreen(
-                      context,
-                      const PhoneCoverTab(),
-                      'Phone Cover',
-                    ),
+                    color: const Color(0xFF059669),
+                    screen: const PhoneCoverTab(),
                   ),
-                  _buildModuleCard(
+                  _buildCategoryCard(
                     context,
-                    icon: Icons
-                        .battery_charging_full_rounded, // Direct battery icon
+                    icon: Icons.battery_charging_full_rounded,
                     title: 'Battery',
-                    color: Colors.orange,
-
-                    onTap: () => _navigateToScreen(
-                      context,
-                      const BatteryTab(),
-                      'Battery',
-                    ),
-                    // onTap: () => _showComingSoon(context),
+                    color: const Color(0xFFD97706),
+                    screen: const BatteryTab(),
                   ),
-                  _buildModuleCard(
+                  _buildCategoryCard(
                     context,
-                    icon: Icons
-                        .smart_display_rounded, // More specific for display
-                    // Alternative: Icons.connected_tv_rounded
+                    icon: Icons.connected_tv_rounded,
                     title: 'Display',
-                    color: Colors.purple,
-
-                    onTap: () => _navigateToScreen(
-                      context,
-                      const DisplayTab(),
-                      'display',
-                    ),
+                    color: const Color(0xFF7C3AED),
+                    screen: const DisplayTab(),
                   ),
                 ],
               ),
-            ),
-          ],
+              const SizedBox(height: 24), // Reduced from 32
+              // Recent Activity section
+              const Text(
+                'Recent Activity',
+                style: TextStyle(
+                  fontSize: 18, // Decreased from 20
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1F2937),
+                ),
+              ),
+              const SizedBox(height: 12), // Reduced from 16
+              // Activity list
+              _buildActivityTile(
+                'New Screen Guard added',
+                'iPhone 15 Pro Max',
+                '2 min ago',
+                Icons.shield_rounded,
+                const Color(0xFF2563EB),
+              ),
+              const SizedBox(height: 8), // Reduced from 12
+              _buildActivityTile(
+                'Phone Cover updated',
+                'Samsung S24 Ultra',
+                '1 hour ago',
+                Icons.phone_iphone_rounded,
+                const Color(0xFF059669),
+              ),
+              const SizedBox(height: 8), // Reduced from 12
+              _buildActivityTile(
+                'Battery stock updated',
+                'iPhone 14 Plus',
+                '3 hours ago',
+                Icons.battery_charging_full_rounded,
+                const Color(0xFFD97706),
+              ),
+              const SizedBox(height: 8), // Reduced from 12
+              _buildActivityTile(
+                'Display price updated',
+                'Google Pixel 8',
+                '5 hours ago',
+                Icons.connected_tv_rounded,
+                const Color(0xFF7C3AED),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildStatChip(String label, IconData icon, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildModuleCard(
+  Widget _buildCategoryCard(
     BuildContext context, {
     required IconData icon,
     required String title,
     required Color color,
-    required VoidCallback onTap,
+    required Widget screen,
   }) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.withOpacity(0.2)),
+        borderRadius: BorderRadius.circular(16), // Reduced from 20
         boxShadow: [
           BoxShadow(
-            color: Colors.grey.withOpacity(0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: color.withOpacity(0.1),
+            blurRadius: 8, // Reduced from 10
+            offset: const Offset(0, 3), // Reduced from (0, 4)
           ),
         ],
       ),
       child: Material(
         color: Colors.transparent,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(16), // Reduced from 20
         child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) =>
+                    DetailScreen(title: title, child: screen, color: color),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(16), // Reduced from 20
           child: Container(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12), // Reduced from 16
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Icon with background
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(12), // Reduced from 16
                   decoration: BoxDecoration(
                     color: color.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(12), // Reduced from 16
                   ),
-                  child: Icon(icon, color: color, size: 28),
+                  child: Icon(icon, color: color, size: 24), // Reduced from 32
                 ),
-                const SizedBox(height: 8),
-                // Title
+                const SizedBox(height: 8), // Reduced from 12
                 Text(
                   title,
                   style: const TextStyle(
-                    fontSize: 15,
+                    fontSize: 13, // Decreased from 16
                     fontWeight: FontWeight.w600,
+                    color: Color(0xFF1F2937),
                   ),
+                  textAlign: TextAlign.center,
                 ),
               ],
             ),
@@ -238,21 +245,83 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  void _showComingSoon(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: const Row(
-          children: [
-            Icon(Icons.info_outline, color: Colors.white, size: 20),
-            SizedBox(width: 8),
-            Text('This feature is coming soon!'),
-          ],
-        ),
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-        backgroundColor: Colors.blue,
-        duration: const Duration(seconds: 2),
+  Widget _buildActivityTile(
+    String title,
+    String subtitle,
+    String time,
+    IconData icon,
+    Color color,
+  ) {
+    return Container(
+      padding: const EdgeInsets.all(12), // Reduced from 16
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12), // Reduced from 16
+        border: Border.all(color: Colors.grey.withOpacity(0.1)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8), // Reduced from 12
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8), // Reduced from 12
+            ),
+            child: Icon(icon, color: color, size: 16), // Reduced from 20
+          ),
+          const SizedBox(width: 12), // Reduced from 16
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13, // Decreased from 15
+                    color: Color(0xFF1F2937),
+                  ),
+                ),
+                const SizedBox(height: 2), // Reduced from 4
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 11, // Decreased from 13
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            time,
+            style: TextStyle(
+              fontSize: 10, // Decreased from 12
+              color: Colors.grey[500],
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
       ),
     );
+  }
+}
+
+// Reusable Detail Screen
+class DetailScreen extends StatelessWidget {
+  final String title;
+  final Widget child;
+  final Color color;
+
+  const DetailScreen({
+    super.key,
+    required this.title,
+    required this.child,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(backgroundColor: const Color(0xFFF8FAFC), body: child);
   }
 }
