@@ -42,7 +42,7 @@ class Battery {
   }
 }
 
-// Main Battery Tab - IMPROVED DESIGN with App Bar Add Button
+// Main Battery Tab - with duplicate checking and confirmation
 class BatteryTab extends StatefulWidget {
   const BatteryTab({super.key});
 
@@ -101,6 +101,7 @@ class _BatteryTabState extends State<BatteryTab> {
           .map((part) => _normalizeText(part))
           .toList();
 
+      // Check each part individually
       for (int i = 0; i < normalizedNewParts.length; i++) {
         final newPart = normalizedNewParts[i];
         final originalNewPart = newModelParts[i];
@@ -115,12 +116,14 @@ class _BatteryTabState extends State<BatteryTab> {
         }
       }
 
+      // If single part, check if it exists in any existing battery
       if (newModelParts.length == 1) {
         if (normalizedExistingParts.contains(normalizedNewParts[0])) {
           return true;
         }
       }
 
+      // Check if all new parts exist in any existing battery
       bool allPartsExist = true;
       for (var newPart in normalizedNewParts) {
         if (!normalizedExistingParts.contains(newPart)) {
@@ -137,7 +140,7 @@ class _BatteryTabState extends State<BatteryTab> {
   }
 
   // Get duplicate details for better error message
-  Future<String> _getDuplicateDetails(String modelName) async {
+  Future<Map<String, dynamic>> _getDuplicateDetails(String modelName) async {
     final newModelParts = _splitByDelimiters(modelName);
     final normalizedNewParts = newModelParts
         .map((part) => _normalizeText(part))
@@ -153,6 +156,7 @@ class _BatteryTabState extends State<BatteryTab> {
           .map((part) => _normalizeText(part))
           .toList();
 
+      // Check each part individually
       for (int i = 0; i < normalizedNewParts.length; i++) {
         final newPart = normalizedNewParts[i];
         final originalNewPart = newModelParts[i];
@@ -162,19 +166,28 @@ class _BatteryTabState extends State<BatteryTab> {
           final originalExistingPart = existingModelParts[j];
 
           if (newPart == existingPart) {
-            return '"$originalNewPart" is already in: "${existingBattery.modelName}"';
+            return {
+              'message':
+                  '"$originalNewPart" is already in: "${existingBattery.modelName}"',
+              'existingBattery': existingBattery,
+            };
           }
         }
       }
 
+      // If single part, check if it exists in any existing battery
       if (newModelParts.length == 1) {
         if (normalizedExistingParts.contains(normalizedNewParts[0])) {
-          return '"${newModelParts[0]}" is already in: "${existingBattery.modelName}"';
+          return {
+            'message':
+                '"${newModelParts[0]}" is already in: "${existingBattery.modelName}"',
+            'existingBattery': existingBattery,
+          };
         }
       }
     }
 
-    return 'Model already exists';
+    return {'message': 'Model already exists', 'existingBattery': null};
   }
 
   // Check if a specific model part matches search query
@@ -654,34 +667,15 @@ class _BatteryTabState extends State<BatteryTab> {
                             setDialogState(() => isChecking = false);
 
                             if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.warning,
-                                        size: 18,
-                                        color: Colors.white,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          duplicateDetails,
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  backgroundColor: AppColors.warningOrange,
-                                  behavior: SnackBarBehavior.floating,
-                                  duration: const Duration(seconds: 4),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                ),
+                              // Close the add dialog
+                              Navigator.pop(context);
+
+                              // Show confirmation dialog
+                              _showDuplicateConfirmationDialog(
+                                context,
+                                modelName,
+                                duplicateDetails['message'],
+                                duplicateDetails['existingBattery'],
                               );
                             }
                             return;
@@ -791,6 +785,203 @@ class _BatteryTabState extends State<BatteryTab> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  void _showDuplicateConfirmationDialog(
+    BuildContext context,
+    String modelName,
+    String message,
+    Battery? existingBattery,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surfaceWhite,
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.warningOrange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.warning_amber_rounded,
+                color: AppColors.warningOrange,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Duplicate Found',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              message,
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.warningOrange.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.warningOrange.withOpacity(0.2),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: 16,
+                        color: AppColors.warningOrange,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Do you want to add it anyway?',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Adding a duplicate battery model may cause confusion in your inventory.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.textSecondary,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text('Cancel', style: TextStyle(fontSize: 12)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context); // Close confirmation dialog
+
+              try {
+                final now = DateTime.now();
+                await _batteryCollection.add({
+                  'modelName': modelName,
+                  'createdAt': now,
+                  'updatedAt': now,
+                });
+
+                if (context.mounted) {
+                  _scrollToTop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            size: 18,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Added successfully (duplicate)',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: AppColors.warningOrange,
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(seconds: 2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          Icon(Icons.error, size: 18, color: Colors.white),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Error: $e',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: AppColors.errorRed,
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(seconds: 3),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.warningOrange,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            child: const Text('Add Anyway'),
+          ),
+        ],
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
     );
   }
@@ -970,34 +1161,14 @@ class _BatteryTabState extends State<BatteryTab> {
                             setDialogState(() => isChecking = false);
 
                             if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Row(
-                                    children: [
-                                      Icon(
-                                        Icons.warning,
-                                        size: 18,
-                                        color: Colors.white,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Text(
-                                          duplicateDetails,
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  backgroundColor: AppColors.warningOrange,
-                                  behavior: SnackBarBehavior.floating,
-                                  duration: const Duration(seconds: 4),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                ),
+                              Navigator.pop(context); // Close edit dialog
+
+                              _showDuplicateEditConfirmationDialog(
+                                context,
+                                battery,
+                                modelName,
+                                duplicateDetails['message'],
+                                duplicateDetails['existingBattery'],
                               );
                             }
                             return;
@@ -1107,6 +1278,201 @@ class _BatteryTabState extends State<BatteryTab> {
             ),
           );
         },
+      ),
+    );
+  }
+
+  void _showDuplicateEditConfirmationDialog(
+    BuildContext context,
+    Battery battery,
+    String modelName,
+    String message,
+    Battery? existingBattery,
+  ) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surfaceWhite,
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: AppColors.warningOrange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.warning_amber_rounded,
+                color: AppColors.warningOrange,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Duplicate Found',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              message,
+              style: TextStyle(
+                fontSize: 13,
+                color: AppColors.textSecondary,
+                height: 1.4,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.warningOrange.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: AppColors.warningOrange.withOpacity(0.2),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline,
+                        size: 16,
+                        color: AppColors.warningOrange,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Do you want to update anyway?',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Updating to a duplicate battery model may cause confusion in your inventory.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(
+              foregroundColor: AppColors.textSecondary,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: Text('Cancel', style: TextStyle(fontSize: 12)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context); // Close confirmation dialog
+
+              try {
+                await _batteryCollection.doc(battery.id).update({
+                  'modelName': modelName,
+                  'updatedAt': DateTime.now(),
+                });
+
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle,
+                            size: 18,
+                            color: Colors.white,
+                          ),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Updated successfully (duplicate)',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: AppColors.warningOrange,
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(seconds: 2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          Icon(Icons.error, size: 18, color: Colors.white),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Error: $e',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: AppColors.errorRed,
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(seconds: 3),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.warningOrange,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            child: const Text('Update Anyway'),
+          ),
+        ],
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
     );
   }
@@ -1310,7 +1676,7 @@ class _BatteryTabState extends State<BatteryTab> {
   }
 }
 
-// UPDATED Battery List Item Widget - with improved visibility (same as ScreenGuard)
+// Battery List Item Widget - with improved visibility
 class BatteryListItem extends StatelessWidget {
   final Battery battery;
   final String searchQuery;
@@ -1472,7 +1838,7 @@ class BatteryListItem extends StatelessWidget {
   }
 }
 
-// Battery Details Bottom Sheet - improved visibility (same as ScreenGuard)
+// Battery Details Bottom Sheet - improved visibility
 class BatteryDetailsSheet extends StatelessWidget {
   final Battery battery;
 
