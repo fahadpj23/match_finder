@@ -199,6 +199,60 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
     );
   }
 
+  // New method to merge duplicate values
+  Future<void> _mergeWithExisting(
+    String newModelName,
+    ScreenGuard existingGuard,
+  ) async {
+    try {
+      // Split both model names into parts
+      final newParts = _splitByDelimiters(newModelName);
+      final existingParts = _splitByDelimiters(existingGuard.modelName);
+
+      // Normalize parts for comparison
+      final normalizedNewParts = newParts
+          .map((p) => _normalizeText(p))
+          .toList();
+      final normalizedExistingParts = existingParts
+          .map((p) => _normalizeText(p))
+          .toList();
+
+      // Combine unique parts (avoid duplicates)
+      final Set<String> uniqueNormalizedParts = {};
+      final List<String> uniqueOriginalParts = [];
+
+      // Add existing parts first
+      for (int i = 0; i < existingParts.length; i++) {
+        final normalized = normalizedExistingParts[i];
+        if (!uniqueNormalizedParts.contains(normalized)) {
+          uniqueNormalizedParts.add(normalized);
+          uniqueOriginalParts.add(existingParts[i]);
+        }
+      }
+
+      // Add new parts that don't already exist
+      for (int i = 0; i < newParts.length; i++) {
+        final normalized = normalizedNewParts[i];
+        if (!uniqueNormalizedParts.contains(normalized)) {
+          uniqueNormalizedParts.add(normalized);
+          uniqueOriginalParts.add(newParts[i]);
+        }
+      }
+
+      // Combine with original delimiter (using '/')
+      final mergedModelName = uniqueOriginalParts.join(' / ');
+
+      // Update the existing guard with merged model name
+      await _guardsCollection.doc(existingGuard.id).update({
+        'modelName': mergedModelName,
+        'updatedAt': DateTime.now(),
+      });
+    } catch (e) {
+      print('Error merging: $e');
+      rethrow;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -658,7 +712,7 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
                               // Close the add dialog
                               Navigator.pop(context);
 
-                              // Show confirmation dialog
+                              // Show confirmation dialog with merge option
                               _showDuplicateConfirmationDialog(
                                 context,
                                 modelName,
@@ -777,6 +831,7 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
     );
   }
 
+  // Updated Duplicate Confirmation Dialog with Merge Option
   void _showDuplicateConfirmationDialog(
     BuildContext context,
     String modelName,
@@ -846,7 +901,7 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Do you want to add it anyway?',
+                        'How would you like to proceed?',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
@@ -855,12 +910,14 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   Text(
-                    'Adding a duplicate model may cause confusion in your inventory.',
+                    '• Add Separately: Keep as a new duplicate entry\n'
+                    '• Add to Existing: Merge unique values with the existing record',
                     style: TextStyle(
                       fontSize: 12,
                       color: AppColors.textSecondary,
+                      height: 1.5,
                     ),
                   ),
                 ],
@@ -884,6 +941,7 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
             onPressed: () async {
               Navigator.pop(context); // Close confirmation dialog
 
+              // Add Separately - Keep as duplicate
               try {
                 final now = DateTime.now();
                 await _guardsCollection.add({
@@ -906,7 +964,7 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
                           const SizedBox(width: 8),
                           const Expanded(
                             child: Text(
-                              'Added successfully (duplicate)',
+                              'Added as separate entry',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.white,
@@ -966,7 +1024,60 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
                 fontWeight: FontWeight.w500,
               ),
             ),
-            child: const Text('Add Anyway'),
+            child: const Text('Add Separately'),
+          ),
+          SizedBox(height: 5),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context); // Close confirmation dialog
+
+              if (existingGuard != null) {
+                // Merge with existing - remove duplicates and combine unique values
+                await _mergeWithExisting(modelName, existingGuard);
+
+                if (context.mounted) {
+                  _scrollToTop();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          Icon(Icons.merge_type, size: 18, color: Colors.white),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Merged with existing record',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: AppColors.successGreen,
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(seconds: 2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryBlue,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            child: const Text('Add to Existing'),
           ),
         ],
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -1265,6 +1376,7 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
     );
   }
 
+  // Updated Edit Duplicate Confirmation Dialog with Merge Option
   void _showDuplicateEditConfirmationDialog(
     BuildContext context,
     ScreenGuard guard,
@@ -1335,7 +1447,7 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
                       ),
                       const SizedBox(width: 8),
                       Text(
-                        'Do you want to update anyway?',
+                        'How would you like to proceed?',
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w500,
@@ -1344,12 +1456,14 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 12),
                   Text(
-                    'Updating to a duplicate model may cause confusion in your inventory.',
+                    '• Update Separately: Keep this as a separate duplicate\n'
+                    '• Merge with Existing: Combine unique values with the existing record',
                     style: TextStyle(
                       fontSize: 12,
                       color: AppColors.textSecondary,
+                      height: 1.5,
                     ),
                   ),
                 ],
@@ -1373,6 +1487,7 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
             onPressed: () async {
               Navigator.pop(context); // Close confirmation dialog
 
+              // Update Separately - Keep as duplicate
               try {
                 await _guardsCollection.doc(guard.id).update({
                   'modelName': modelName,
@@ -1392,7 +1507,7 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
                           const SizedBox(width: 8),
                           const Expanded(
                             child: Text(
-                              'Updated successfully (duplicate)',
+                              'Updated as separate entry',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: Colors.white,
@@ -1452,7 +1567,58 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
                 fontWeight: FontWeight.w500,
               ),
             ),
-            child: const Text('Update Anyway'),
+            child: const Text('Update Separately'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context); // Close confirmation dialog
+
+              if (existingGuard != null) {
+                // Merge with existing - remove duplicates and combine unique values
+                await _mergeWithExisting(modelName, existingGuard);
+
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Row(
+                        children: [
+                          Icon(Icons.merge_type, size: 18, color: Colors.white),
+                          const SizedBox(width: 8),
+                          const Expanded(
+                            child: Text(
+                              'Merged with existing record',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      backgroundColor: AppColors.successGreen,
+                      behavior: SnackBarBehavior.floating,
+                      duration: const Duration(seconds: 2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryBlue,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            child: const Text('Merge with Existing'),
           ),
         ],
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
