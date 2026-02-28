@@ -1585,6 +1585,7 @@ class _BatteryTabState extends State<BatteryTab> {
             ),
             child: const Text('Update Separately'),
           ),
+          const SizedBox(height: 5),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context); // Close confirmation dialog

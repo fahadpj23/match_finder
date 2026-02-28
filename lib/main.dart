@@ -132,48 +132,8 @@ class HomeScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 24), // Reduced from 32
+
               // Recent Activity section
-              const Text(
-                'Recent Activity',
-                style: TextStyle(
-                  fontSize: 18, // Decreased from 20
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF1F2937),
-                ),
-              ),
-              const SizedBox(height: 12), // Reduced from 16
-              // Activity list
-              _buildActivityTile(
-                'New Screen Guard added',
-                'iPhone 15 Pro Max',
-                '2 min ago',
-                Icons.shield_rounded,
-                const Color(0xFF2563EB),
-              ),
-              const SizedBox(height: 8), // Reduced from 12
-              _buildActivityTile(
-                'Phone Cover updated',
-                'Samsung S24 Ultra',
-                '1 hour ago',
-                Icons.phone_iphone_rounded,
-                const Color(0xFF059669),
-              ),
-              const SizedBox(height: 8), // Reduced from 12
-              _buildActivityTile(
-                'Battery stock updated',
-                'iPhone 14 Plus',
-                '3 hours ago',
-                Icons.battery_charging_full_rounded,
-                const Color(0xFFD97706),
-              ),
-              const SizedBox(height: 8), // Reduced from 12
-              _buildActivityTile(
-                'Display price updated',
-                'Google Pixel 8',
-                '5 hours ago',
-                Icons.connected_tv_rounded,
-                const Color(0xFF7C3AED),
-              ),
             ],
           ),
         ),

@@ -1568,6 +1568,7 @@ class _PhoneCoverTabState extends State<PhoneCoverTab> {
             ),
             child: const Text('Update Separately'),
           ),
+          const SizedBox(height: 5),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context); // Close confirmation dialog

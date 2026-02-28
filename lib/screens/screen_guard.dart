@@ -1569,6 +1569,7 @@ class _ScreenGuardTabState extends State<ScreenGuardTab> {
             ),
             child: const Text('Update Separately'),
           ),
+          const SizedBox(height: 5),
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context); // Close confirmation dialog
