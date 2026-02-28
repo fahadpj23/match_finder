@@ -131,9 +131,7 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 24), // Reduced from 32
-
-              // Recent Activity section
+              const SizedBox(height: 24),
             ],
           ),
         ),
